@@ -15,8 +15,8 @@ if (!TOKEN_ME) {
 const botMe = new TelegramBot(TOKEN_ME, { polling: true });
 const botCon = TOKEN_CON ? new TelegramBot(TOKEN_CON, { polling: true }) : null;
 
-// Cấu hình phí sàn Binance dự kiến (tính theo %)
-const BINANCE_FEE_PERCENT = 0.1; 
+// Cấu hình phí sàn Binance là 1%
+const BINANCE_FEE_PERCENT = 1.0; 
 
 // Hàm lấy biên độ lợi nhuận theo hạn mức
 function getProfitByAmount(amount) {
@@ -81,7 +81,6 @@ async function fetchRatesForAmount(aedAmount, vndAmount) {
     const usdtVndPrice = parseFloat(vndSellList[0].adv.price); // Giá USDT/VND
     const usdtAedPrice = parseFloat(aedBuyList.length ? aedBuyList[0].adv.price : 3.67); // Giá USDT/AED
 
-    // Tỷ giá gốc chuẩn chéo qua sàn
     const giaMuaGoc = Math.round(usdtVndPrice / usdtAedPrice);
 
     let giaBanGoc = giaMuaGoc;
@@ -98,30 +97,8 @@ async function fetchRatesForAmount(aedAmount, vndAmount) {
   }
 }
 
-// LẤY 3 MỨC HẠN MỨC CHO LỆNH GIA (BOT MẸ)
-async function fetchMultiTierRates() {
-  const tiers = [
-    { name: "NHỎ", aed: 50, vnd: 150000 },
-    { name: "TRUNG BÌNH", aed: 1000, vnd: 5000000 },
-    { name: "LỚN", aed: 10000, vnd: 20000000 }
-  ];
-
-  const results = [];
-  for (const tier of tiers) {
-    const data = await fetchRatesForAmount(tier.aed, tier.vnd);
-    results.push({
-      name: tier.name,
-      aedMark: tier.aed,
-      vndMark: tier.vnd,
-      rate: data || { giaMuaGoc: 0, giaBanGoc: 0 }
-    });
-  }
-  return results;
-}
-
-
 // ==========================================
-// 1. LOGIC XỬ LÝ CHO BOT MẸ
+// 1. LOGIC XỬ LÝ CHO BOT MẸ (HIỆN PHÍ & CỘNG PHÍ 1%)
 // ==========================================
 async function handleBotMe(msg) {
   if (!msg || !msg.text) return;
@@ -131,54 +108,57 @@ async function handleBotMe(msg) {
 
   try {
     if (lowerText === 'gia' || lowerText === '/gia') {
-      await botMe.sendMessage(chatId, "⏳ Đang quét 3 mốc hạn mức trên Binance P2P...");
-      const multiTierData = await fetchMultiTierRates();
-      if (!multiTierData) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu Binance!");
+      await botMe.sendMessage(chatId, "⏳ Đang quét dữ liệu Binance P2P...");
+      const data = await fetchRatesForAmount(1000, 7000000);
+      if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu Binance!");
 
-      let msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (BOT MẸ)** (${getFullDateString()})\n\n`;
-      for (const tier of multiTierData) {
-        msgText += `⚡ **MỨC ${tier.name} (~${tier.aed} AED):**\n` +
-          `🟢 Giá Mua AED gốc: **1 AED = ${tier.rate.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
-          `🔴 Giá Bán AED gốc: **1 AED = ${tier.rate.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n`;
-      }
-      msgText += `📞 L.H WS: +84 373350255 để giao dịch`;
+      const msgText = `📊 **BÁO CÁO TỶ GIÁ (BOT MẸ)** (${getFullDateString()})\n\n` +
+        `🟢 Giá Mua AED gốc: **1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
+        `🔴 Giá Bán AED gốc: **1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `📞 L.H WS: +84 373350255 để giao dịch`;
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh Mua: "mua 100" hoặc "/mua 100"
+    // Xử lý lệnh Mua
     const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
     if (muaMatch) {
       const amount = parseFloat(muaMatch[2]);
-      await botMe.sendMessage(chatId, `⏳ Đang tính toán chuẩn xác cho ${amount.toLocaleString('vi-VN')} AED...`);
+      await botMe.sendMessage(chatId, `⏳ Đang tính toán cho ${amount.toLocaleString('vi-VN')} AED...`);
       
       const data = await fetchRatesForAmount(amount, amount * 7000);
       if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
 
       const margin = getProfitByAmount(amount);
       const giaBao = data.giaMuaGoc + margin;
-      const tongThu = giaBao * amount;
-      const totalLoi = margin * amount;
+      
+      // Tính toán lượng USDT và phí 1%
+      const usdtAedNeeded = amount / data.usdtAedPrice; 
+      const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100); 
+      const totalUsdtNeeded = (usdtAedNeeded + feeUsdt).toFixed(2);
 
-      // Tính số lượng USDT cần giao dịch thực tế trên sàn (có bù trượt phí sàn)
-      const usdtAedNeeded = amount / data.usdtAedPrice;
-      const usdtVndNeeded = (usdtAedNeeded * (1 + BINANCE_FEE_PERCENT / 100)).toFixed(2);
+      // Quy đổi phí sang VNĐ cộng vào tổng tiền khách trả
+      const feeVnd = feeUsdt * data.usdtVndPrice;
+      const baseVnd = amount * giaBao;
+      const tongThu = Math.round(baseVnd + feeVnd); 
+      const totalLoi = margin * amount;
 
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Giá gốc chuẩn sàn: **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
         `• Lợi nhuận áp dụng: **+${margin} VNĐ/AED**\n` +
         `• Tỷ giá báo khách: **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
-        `👉 **TỔNG TIỀN KHÁCH CẦN TRẢ:** **${Math.round(tongThu).toLocaleString('vi-VN')} VNĐ**\n` +
-        `💎 **CẦN GIAO DỊCH TRÊN SÀN:** **~${usdtVndNeeded} USDT**\n` +
+        `💎 **CẦN GIAO DỊCH TRÊN SÀN:** **~${totalUsdtNeeded} USDT** (Đã gồm phí 1%)\n` +
+        `💸 **PHÍ SÀN (1%):** **${Math.round(feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
+        `👉 **TỔNG TIỀN KHÁCH CẦN TRẢ:** **${tongThu.toLocaleString('vi-VN')} VNĐ**\n` +
         `💵 **TIỀN LỜI (LÃI THỰC NHẬN):** **${Math.round(totalLoi).toLocaleString('vi-VN')} VNĐ**`;
       
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh Bán: "ban 100" hoặc "/ban 100"
+    // Xử lý lệnh Bán
     const banMatch = lowerText.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
     if (banMatch) {
       const amount = parseFloat(banMatch[2]);
-      await botMe.sendMessage(chatId, `⏳ Đang tính toán chuẩn xác cho ${amount.toLocaleString('vi-VN')} AED...`);
+      await botMe.sendMessage(chatId, `⏳ Đang tính toán cho ${amount.toLocaleString('vi-VN')} AED...`);
 
       const data = await fetchRatesForAmount(amount, amount * 7000);
       if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
@@ -199,13 +179,12 @@ async function handleBotMe(msg) {
     }
   } catch (err) {
     console.error("Lỗi xử lý tin nhắn Bot Mẹ:", err);
-    botMe.sendMessage(chatId, "⚠️ Đã xảy ra lỗi hệ thống khi xử lý lệnh! Vui lòng thử lại sau.").catch(() => {});
   }
 }
 
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (GỌN GÀNG CHO KHÁCH)
+// 2. LOGIC XỬ LÝ CHO BOT CON (ẨN HOÀN TOÀN PHÍ SÀN)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg || !msg.text) return;
@@ -215,7 +194,6 @@ async function handleBotCon(msg) {
 
   try {
     if (lowerText === 'gia' || lowerText === '/gia') {
-      await botCon.sendMessage(chatId, "⏳ Đang lấy dữ liệu tỷ giá...");
       const data = await fetchRatesForAmount(1000, 7000000);
       if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
@@ -239,11 +217,16 @@ async function handleBotCon(msg) {
 
       const margin = getProfitByAmount(amount);
       const giaBao = data.giaMuaGoc + margin;
-      const tongThu = giaBao * amount;
+      
+      // Bot con tự động gộp phí 1% ngầm vào tổng tiền thu của khách mà không hiện dòng phí
+      const usdtAedNeeded = amount / data.usdtAedPrice;
+      const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100);
+      const feeVnd = feeUsdt * data.usdtVndPrice;
+      const tongThu = Math.round((amount * giaBao) + feeVnd);
 
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Tỷ giá áp dụng: **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
-        `👉 **TỔNG TIỀN KHÁCH CẦN TRẢ:** **${Math.round(tongThu).toLocaleString('vi-VN')} VNĐ**`;
+        `👉 **TỔNG TIỀN KHÁCH CẦN TRẢ:** **${tongThu.toLocaleString('vi-VN')} VNĐ**`;
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
@@ -278,4 +261,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống Bot Mẹ & Bot Con đã khởi động thành công và sẵn sàng hoạt động!");
+console.log("🚀 Hệ thống Bot Mẹ & Bot Con đã cấu hình phí 1% thành công!");
