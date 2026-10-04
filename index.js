@@ -28,11 +28,20 @@ function getFullDateString() {
   return `${timeStr} ${dateStr}`;
 }
 
+// Hàm lấy dữ liệu Binance P2P CHỈ LỌC Phương thức Chuyển khoản ngân hàng ("BANK")
 async function getBinanceP2PData(fiat, tradeType) {
   try {
     const response = await axios.post(
       'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search',
-      { fiat: fiat, page: 1, rows: 5, tradeType: tradeType, asset: 'USDT', countries: [], payTypes: ["BANK"] },
+      { 
+        fiat: fiat, 
+        page: 1, 
+        rows: 10, 
+        tradeType: tradeType, 
+        asset: 'USDT', 
+        countries: [], 
+        payTypes: ["BANK"] // CHỈ LẤY CÁC NHÀ GIAO DỊCH DÙNG NGÂN HÀNG (BANK TRANSFER)
+      },
       { timeout: 10000 }
     );
     return response.data?.data || [];
@@ -53,13 +62,13 @@ async function fetchFullRates() {
     return null;
   }
 
-  // TOP 1
+  // TOP 1 Ngân Hàng
   const vndBuy1 = parseFloat(vndBuyList[0].adv.price);
   const vndSell1 = parseFloat(vndSellList[0].adv.price);
   const aedBuy1 = parseFloat(aedBuyList[0].adv.price);
   const aedSell1 = parseFloat(aedSellList[0].adv.price);
 
-  // TRUNG BÌNH (TOP 2 - 4)
+  // TRUNG BÌNH (TOP 2 - 4) Ngân Hàng
   const calcAvg = (list) => {
     const items = list.slice(1, 4);
     if (!items.length) return parseFloat(list[0].adv.price);
@@ -72,7 +81,7 @@ async function fetchFullRates() {
   const aedBuyAvg = calcAvg(aedBuyList);
   const aedSellAvg = calcAvg(aedSellList);
 
-  // Giá chuyển đổi
+  // Tính tỷ giá AED/VND quy đổi từ Ngân Hàng
   const giaMuaTop1 = Math.round(vndBuy1 / aedSell1);
   const giaBanTop1 = Math.round(vndSell1 / aedBuy1);
 
@@ -96,7 +105,7 @@ async function fetchFullRates() {
 }
 
 // ==========================================
-// 1. LOGIC BOT MẸ (FORMAT CHÍNH XÁC THEO HÌNH 1)
+// 1. LOGIC BOT MẸ (CHO NGƯỜI QUẢN LÝ)
 // ==========================================
 async function handleBotMe(msg) {
   const chatId = msg.chat.id;
@@ -104,11 +113,12 @@ async function handleBotMe(msg) {
   const lowerText = text.toLowerCase();
 
   if (lowerText === 'gia' || lowerText === '/gia') {
-    botMe.sendMessage(chatId, "Đang lấy dữ liệu tỉ giá Binance P2P, vui lòng đợi giây lát...");
+    botMe.sendMessage(chatId, "Đang lấy dữ liệu tỉ giá Binance P2P (Chuyển khoản Ngân hàng), vui lòng đợi giây lát...");
     const data = await fetchFullRates();
     if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu Binance!");
 
-    const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P**\n\n` +
+    const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P**\n` +
+      `(Lọc phương thức Chuyển khoản Ngân hàng)\n\n` +
       `🥇 **P2P TOP 1:**\n` +
       `• VND: Mua ${data.top1.vndBuy.toLocaleString('vi-VN')} | Bán ${data.top1.vndSell.toLocaleString('vi-VN')}\n` +
       `• AED: Mua ${data.top1.aedBuy.toFixed(2)} | Bán ${data.top1.aedSell.toFixed(2)}\n` +
@@ -139,7 +149,7 @@ async function handleBotMe(msg) {
     const tongLoi = PROFIT_MUA * amount;
 
     const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
-      `• Giá gốc Top 1: **${data.top1.giaMua.toLocaleString('vi-VN')} VNĐ**\n` +
+      `• Giá gốc Ngân hàng (Top 1): **${data.top1.giaMua.toLocaleString('vi-VN')} VNĐ**\n` +
       `• Tỷ giá áp dụng (+${PROFIT_MUA}): **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
       `👉 **TỔNG TIỀN KHÁCH CẦN TRẢ:** **${Math.round(tongThu).toLocaleString('vi-VN')} VNĐ**\n` +
       `💵 **TIỀN LỜI (LÃI):** **${Math.round(tongLoi).toLocaleString('vi-VN')} VNĐ**`;
@@ -158,7 +168,7 @@ async function handleBotMe(msg) {
     const tongLoi = PROFIT_BAN * amount;
 
     const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
-      `• Giá gốc Top 1: **${data.top1.giaBan.toLocaleString('vi-VN')} VNĐ**\n` +
+      `• Giá gốc Ngân hàng (Top 1): **${data.top1.giaBan.toLocaleString('vi-VN')} VNĐ**\n` +
       `• Tỷ giá áp dụng (-${PROFIT_BAN}): **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
       `👉 **TỔNG TIỀN TRẢ KHÁCH:** **${Math.round(tongChi).toLocaleString('vi-VN')} VNĐ**\n` +
       `💵 **TIỀN LỜI (LÃI):** **${Math.round(tongLoi).toLocaleString('vi-VN')} VNĐ**`;
@@ -167,7 +177,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC BOT CON (FORMAT CHÍNH XÁC THEO HÌNH 2)
+// 2. LOGIC BOT CON (CHO KHÁCH HÀNG)
 // ==========================================
 async function handleBotCon(msg) {
   const chatId = msg.chat.id;
@@ -183,7 +193,7 @@ async function handleBotCon(msg) {
     const giaBanKhach = data.top1.giaBan - PROFIT_BAN;
 
     const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE (${getFullDateString()})**\n` +
-      `(Lọc merchant và phương thức chuyển khoản ngân hàng)\n\n` +
+      `(Lọc phương thức chuyển khoản ngân hàng)\n\n` +
       `⚡ **GIAO DỊCH NHANH (EXPRESS):**\n` +
       `🟢 **GIÁ MUA AED (VND ➔ AED):** 1 AED = ${giaMuaKhach.toLocaleString('vi-VN')} VNĐ (~${(giaMuaKhach/1000).toFixed(2)})\n` +
       `🔴 **GIÁ BÁN AED (AED ➔ VND):** 1 AED = ${giaBanKhach.toLocaleString('vi-VN')} VNĐ (~${(giaBanKhach/1000).toFixed(2)})`;
@@ -196,7 +206,7 @@ async function handleBotCon(msg) {
     const amount = parseFloat(muaMatch[2]);
     botCon.sendMessage(chatId, `⏳ Đang tính tiền mua ${amount} AED...`);
     const data = await fetchFullRates();
-    if (!data) return botCon.sendMessage(chatId, "⚠️️ Lỗi kết nối dữ liệu!");
+    if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
     const giaBao = data.top1.giaMua + PROFIT_MUA;
     const tongThu = giaBao * amount;
@@ -224,6 +234,6 @@ async function handleBotCon(msg) {
   }
 }
 
-// Đăng ký sự kiện
+// Đăng ký nhận tin nhắn
 botMe.on('message', handleBotMe);
 if (botCon) botCon.on('message', handleBotCon);
