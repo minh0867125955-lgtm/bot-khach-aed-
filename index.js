@@ -12,22 +12,12 @@ if (!TOKEN_ME) {
 const botMe = new TelegramBot(TOKEN_ME, { polling: true });
 const botCon = TOKEN_CON ? new TelegramBot(TOKEN_CON, { polling: true }) : null;
 
-// ==========================================
-// HÀM TÍNH LỢI NHUẬN THEO MỐC QUY ĐỊNH
-// ==========================================
 function getProfitByAmount(amount) {
-  if (amount < 500) {
-    return 200;
-  } else if (amount >= 500 && amount < 1000) {
-    return 175;
-  } else if (amount >= 1000 && amount < 5000) {
-    return 150;
-  } else if (amount >= 5000 && amount <= 10000) {
-    return 100;
-  } else {
-    // Trên 10,000 AED
-    return 75;
-  }
+  if (amount < 500) return 200;
+  if (amount >= 500 && amount < 1000) return 175;
+  if (amount >= 1000 && amount < 5000) return 150;
+  if (amount >= 5000 && amount <= 10000) return 100;
+  return 75;
 }
 
 function getFullDateString() {
@@ -37,7 +27,6 @@ function getFullDateString() {
   return `${timeStr} ${dateStr}`;
 }
 
-// LẤY DỮ LIỆU BINANCE P2P CÓ LỌC THEO HẠN MỨC (transAmount)
 async function getBinanceP2PData(fiat, tradeType, transAmount = null) {
   try {
     const payload = { 
@@ -65,13 +54,11 @@ async function getBinanceP2PData(fiat, tradeType, transAmount = null) {
   }
 }
 
-// HÀM LẤY TỶ GIÁ THEO SỐ LƯỢNG THỰC TẾ
-async function fetchRatesForAmount(aedAmount) {
-  const approxVnd = aedAmount * 7000;
-
+// HÀM TÍNH TOÁN THEO HẠN MỨC CỤ THỂ
+async function fetchRatesForAmount(aedAmount, vndAmount) {
   const [vndBuyList, vndSellList, aedBuyList, aedSellList] = await Promise.all([
-    getBinanceP2PData('VND', 'BUY', approxVnd),
-    getBinanceP2PData('VND', 'SELL', approxVnd),
+    getBinanceP2PData('VND', 'BUY', vndAmount),
+    getBinanceP2PData('VND', 'SELL', vndAmount),
     getBinanceP2PData('AED', 'BUY', aedAmount),
     getBinanceP2PData('AED', 'SELL', aedAmount)
   ]);
@@ -80,53 +67,40 @@ async function fetchRatesForAmount(aedAmount) {
     return null;
   }
 
-  const vndBuy = parseFloat(vndBuyList[0].adv.price);
   const vndSell = parseFloat(vndSellList[0].adv.price);
   const aedBuy = parseFloat(aedBuyList[0].adv.price);
+  const vndBuy = parseFloat(vndBuyList[0].adv.price);
   const aedSell = parseFloat(aedSellList[0].adv.price);
 
-  const giaMuaGoc = Math.round(vndBuy / aedSell);
-  const giaBanGoc = Math.round(vndSell / aedBuy);
+  const giaMuaGoc = Math.round(vndSell / aedBuy);
+  const giaBanGoc = Math.round(vndBuy / aedSell);
 
-  // Lấy thêm giá lẻ của USDT so với AED/VND để tính số USDT chính xác trên sàn
-  // Khách mua AED -> Mình cần MUA USDT bên VND (dùng giá vndBuy) hoặc BÁN USDT bên AED (nhận AED)
-  // Tính số USDT cần quy đổi từ AED sang USDT (dựa trên giá aedSell của thương nhân AED)
-  return { giaMuaGoc, giaBanGoc, aedSell, aedBuy };
+  return { giaMuaGoc, giaBanGoc, aedBuy, aedSell };
 }
 
-// HÀM LẤY TỶ GIÁ TỔNG QUAN (CHO LỆNH GIA)
-async function fetchFullRates() {
-  const [vndBuyList, vndSellList, aedBuyList, aedSellList] = await Promise.all([
-    getBinanceP2PData('VND', 'BUY'),
-    getBinanceP2PData('VND', 'SELL'),
-    getBinanceP2PData('AED', 'BUY'),
-    getBinanceP2PData('AED', 'SELL')
-  ]);
+// HÀM LẤY 3 MỨC HẠN MỨC CHO BOT MẸ (LỆNH GIA)
+async function fetchMultiTierRates() {
+  const tiers = [
+    { name: "NHỎ", aed: 200, vnd: 300000 },
+    { name: "TRUNG BÌNH", aed: 1000, vnd: 5000000 },
+    { name: "LỚN", aed: 10000, vnd: 20000000 }
+  ];
 
-  if (!vndBuyList.length || !vndSellList.length || !aedBuyList.length || !aedSellList.length) {
-    return null;
+  const results = [];
+  for (const tier of tiers) {
+    const data = await fetchRatesForAmount(tier.aed, tier.vnd);
+    results.push({
+      name: tier.name,
+      aedMark: tier.aed,
+      vndMark: tier.vnd,
+      rate: data || { giaMuaGoc: 0, giaBanGoc: 0 }
+    });
   }
-
-  const vndBuy1 = parseFloat(vndBuyList[0].adv.price);
-  const vndSell1 = parseFloat(vndSellList[0].adv.price);
-  const aedBuy1 = parseFloat(aedBuyList[0].adv.price);
-  const aedSell1 = parseFloat(aedSellList[0].adv.price);
-
-  const giaMuaGocTop1 = Math.round(vndBuy1 / aedSell1);
-  const giaBanGocTop1 = Math.round(vndSell1 / aedBuy1);
-
-  return {
-    express: {
-      vndBuy: vndBuy1, vndSell: vndSell1,
-      aedBuy: aedBuy1, aedSell: aedSell1,
-      giaMuaGoc: giaMuaGocTop1,
-      giaBanGoc: giaBanGocTop1
-    }
-  };
+  return results;
 }
 
 // ==========================================
-// 1. LOGIC BOT MẸ (CÓ THÊM SỐ LƯỢNG USDT)
+// 1. LOGIC BOT MẸ
 // ==========================================
 async function handleBotMe(msg) {
   const chatId = msg.chat.id;
@@ -134,37 +108,35 @@ async function handleBotMe(msg) {
   const lowerText = text.toLowerCase();
 
   if (lowerText === 'gia' || lowerText === '/gia') {
-    botMe.sendMessage(chatId, "Đang lấy dữ liệu tỉ giá Binance P2P...");
-    const data = await fetchFullRates();
-    if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu Binance!");
+    botMe.sendMessage(chatId, "⏳ Đang quét 3 mốc hạn mức trên Binance P2P...");
+    const multiTierData = await fetchMultiTierRates();
+    if (!multiTierData) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu Binance!");
 
-    const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (GIÁ GỐC) (${getFullDateString()})**\n` +
-      `⚠️ *(Giá chỉ mang tính chất tham khảo)*\n` +
-      `👉 *Muốn check giá đúng hãy nhập lệnh mua hoặc bán + số tiền*\n` +
-      `👉 *Ví dụ: mua 1000 hoặc ban 1000*\n\n` +
-      `⚡ **GIAO DỊCH NHANH (EXPRESS):**\n` +
-      `🟢 **GIÁ MUA AED GỐC:** **1 AED = ${data.express.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
-      `🔴 **GIÁ BÁN AED GỐC:** **1 AED = ${data.express.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
-      `📞 L.H WS: +84 373350255 để giao dịch / nhận ưu đãi hơn`;
+    let msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (3 MỐC) (${getFullDateString()})**\n` +
+      `⚠️ *(Giá gốc theo từng hạn mức giao dịch)*\n\n`;
 
+    for (const tier of multiTierData) {
+      msgText += `⚡ **MỨC ${tier.name} (~${tier.aed >= 1000 ? (tier.aed/1000)+'k' : tier.aed} AED / ~${tier.vnd >= 1000000 ? (tier.vnd/1000000)+'tr' : tier.vnd/1000+'k'} VNĐ):**\n` +
+        `🟢 Giá Mua AED gốc: **1 AED = ${tier.rate.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
+        `🔴 Giá Bán AED gốc: **1 AED = ${tier.rate.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n`;
+    }
+
+    msgText += `📞 L.H WS: +84 373350255 để giao dịch / nhận ưu đãi hơn`;
     return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
   }
 
-  // Lệnh mua
   const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
   if (muaMatch) {
     const amount = parseFloat(muaMatch[2]);
     botMe.sendMessage(chatId, `⏳ Đang quét thương nhân phù hợp cho ${amount.toLocaleString('vi-VN')} AED...`);
-    const data = await fetchRatesForAmount(amount);
+    const data = await fetchRatesForAmount(amount, amount * 7000);
     if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
     const margin = getProfitByAmount(amount);
     const giaBao = data.giaMuaGoc + margin;
     const tongThu = giaBao * amount;
     const tongLoi = margin * amount;
-    
-    // Tính số USDT cần giao dịch trên sàn (Lấy số AED chia cho giá bán AED của thương nhân nước ngoài)
-    const usdtNeeded = amount / data.aedSell;
+    const usdtNeeded = amount / data.aedBuy;
 
     const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
       `• Giá gốc xả chuẩn hạn mức: **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -176,21 +148,18 @@ async function handleBotMe(msg) {
     return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
   }
 
-  // Lệnh bán
   const banMatch = lowerText.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
   if (banMatch) {
     const amount = parseFloat(banMatch[2]);
     botMe.sendMessage(chatId, `⏳ Đang quét thương nhân phù hợp cho ${amount.toLocaleString('vi-VN')} AED...`);
-    const data = await fetchRatesForAmount(amount);
+    const data = await fetchRatesForAmount(amount, amount * 7000);
     if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
     const margin = getProfitByAmount(amount);
     const giaBao = data.giaBanGoc - margin;
     const tongChi = giaBao * amount;
     const tongLoi = margin * amount;
-
-    // Tính số USDT cần giao dịch trên sàn khi khách bán AED (Nhận AED từ khách -> Bán USDT thu AED hoặc mua USDT trả khách)
-    const usdtNeeded = amount / data.aedBuy;
+    const usdtNeeded = amount / data.aedSell;
 
     const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
       `• Giá gốc xả chuẩn hạn mức: **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -204,7 +173,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC BOT CON (GIỮ NGUYÊN HOẶC RÚT GỌN CHO KHÁCH)
+// 2. LOGIC BOT CON (GIỮ GỌN GÀNG CHO KHÁCH)
 // ==========================================
 async function handleBotCon(msg) {
   const chatId = msg.chat.id;
@@ -213,11 +182,12 @@ async function handleBotCon(msg) {
 
   if (lowerText === 'gia' || lowerText === '/gia') {
     botCon.sendMessage(chatId, "⏳ Đang lấy dữ liệu tỷ giá Express...");
-    const data = await fetchFullRates();
+    // Bot con chỉ lấy 1 mốc top đầu cho gọn
+    const data = await fetchRatesForAmount(1000, 7000000);
     if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
-    const giaMuaKhach = data.express.giaMuaGoc + 200;
-    const giaBanKhach = data.express.giaBanGoc - 200;
+    const giaMuaKhach = data.giaMuaGoc + 200;
+    const giaBanKhach = data.giaBanGoc - 200;
 
     const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE (${getFullDateString()})**\n` +
       `⚠️ *(Giá chỉ mang tính chất tham khảo)*\n` +
@@ -235,8 +205,8 @@ async function handleBotCon(msg) {
   if (muaMatch) {
     const amount = parseFloat(muaMatch[2]);
     botCon.sendMessage(chatId, `⏳ Đang tính tiền mua ${amount.toLocaleString('vi-VN')} AED...`);
-    const data = await fetchRatesForAmount(amount);
-    if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
+    const data = await fetchRatesForAmount(amount, amount * 7000);
+    if (!data) return botCon.sendMessage(chatId, "⚠️️ Lỗi kết nối dữ liệu!");
 
     const margin = getProfitByAmount(amount);
     const giaBao = data.giaMuaGoc + margin;
@@ -252,7 +222,7 @@ async function handleBotCon(msg) {
   if (banMatch) {
     const amount = parseFloat(banMatch[2]);
     botCon.sendMessage(chatId, `⏳ Đang tính tiền bán ${amount.toLocaleString('vi-VN')} AED...`);
-    const data = await fetchRatesForAmount(amount);
+    const data = await fetchRatesForAmount(amount, amount * 7000);
     if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
     const margin = getProfitByAmount(amount);
