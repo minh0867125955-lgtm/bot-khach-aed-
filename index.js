@@ -101,7 +101,7 @@ async function fetchRatesForAmount(aedAmount, vndAmount) {
 // LẤY 3 MỨC HẠN MỨC CHO LỆNH GIA (BOT MẸ)
 async function fetchMultiTierRates() {
   const tiers = [
-    { name: "NHỎ", aed: 200, vnd: 300000 },
+    { name: "NHỎ", aed: 50, vnd: 150000 },
     { name: "TRUNG BÌNH", aed: 1000, vnd: 5000000 },
     { name: "LỚN", aed: 10000, vnd: 20000000 }
   ];
