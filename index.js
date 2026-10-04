@@ -212,13 +212,10 @@ async function handleBotCon(msg) {
       `👉 *Ví dụ: mua 1000 hoặc ban 1000*\n\n` +
       `⚡ **GIAO DỊCH NHANH (EXPRESS):**\n` +
       `🟢 **GIÁ MUA AED (VND ➔ AED):** 1 AED = ${giaMuaKhach.toLocaleString('vi-VN')} VNĐ (~${(giaMuaKhach/1000).toFixed(2)})\n` +
-      `🔴 **GIÁ BÁN AED (AED ➔ VND):** 1 AED = ${giaBanKhach.toLocaleString('vi-VN')} VNĐ (~${(giaBanKhach/1000).toFixed(2)})`;
+      `🔴 **GIÁ BÁN AED (AED ➔ VND):** 1 AED = ${giaBanKhach.toLocaleString('vi-VN')} VNĐ (~${(giaBanKhach/1000).toFixed(2)})\n\n` +
+      `📞 L.H WS: +84 373350255 để giao dịch / nhận ưu đãi hơn`;
 
     return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
-  }
-
-  // Lệnh mua (Áp dụng theo bảng quy định mốc)
-  const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
   if (muaMatch) {
     const amount = parseFloat(muaMatch[2]);
     botCon.sendMessage(chatId, `⏳ Đang tính tiền mua ${amount.toLocaleString('vi-VN')} AED...`);
