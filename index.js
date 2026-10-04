@@ -67,7 +67,6 @@ async function getBinanceP2PData(fiat, tradeType, transAmount = null) {
 
 // HÀM LẤY TỶ GIÁ THEO SỐ LƯỢNG THỰC TẾ
 async function fetchRatesForAmount(aedAmount) {
-  // Ước tính quy đổi tạm thời để tìm thương nhân phù hợp bên VND
   const approxVnd = aedAmount * 7000;
 
   const [vndBuyList, vndSellList, aedBuyList, aedSellList] = await Promise.all([
@@ -89,7 +88,10 @@ async function fetchRatesForAmount(aedAmount) {
   const giaMuaGoc = Math.round(vndBuy / aedSell);
   const giaBanGoc = Math.round(vndSell / aedBuy);
 
-  return { giaMuaGoc, giaBanGoc };
+  // Lấy thêm giá lẻ của USDT so với AED/VND để tính số USDT chính xác trên sàn
+  // Khách mua AED -> Mình cần MUA USDT bên VND (dùng giá vndBuy) hoặc BÁN USDT bên AED (nhận AED)
+  // Tính số USDT cần quy đổi từ AED sang USDT (dựa trên giá aedSell của thương nhân AED)
+  return { giaMuaGoc, giaBanGoc, aedSell, aedBuy };
 }
 
 // HÀM LẤY TỶ GIÁ TỔNG QUAN (CHO LỆNH GIA)
@@ -124,7 +126,7 @@ async function fetchFullRates() {
 }
 
 // ==========================================
-// 1. LOGIC BOT MẸ
+// 1. LOGIC BOT MẸ (CÓ THÊM SỐ LƯỢNG USDT)
 // ==========================================
 async function handleBotMe(msg) {
   const chatId = msg.chat.id;
@@ -160,12 +162,16 @@ async function handleBotMe(msg) {
     const giaBao = data.giaMuaGoc + margin;
     const tongThu = giaBao * amount;
     const tongLoi = margin * amount;
+    
+    // Tính số USDT cần giao dịch trên sàn (Lấy số AED chia cho giá bán AED của thương nhân nước ngoài)
+    const usdtNeeded = amount / data.aedSell;
 
     const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
       `• Giá gốc xả chuẩn hạn mức: **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
       `• Lợi nhuận áp dụng: **+${margin} VNĐ/AED**\n` +
       `• Tỷ giá báo khách: **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
       `👉 **TỔNG TIỀN KHÁCH CẦN TRẢ:** **${Math.round(tongThu).toLocaleString('vi-VN')} VNĐ**\n` +
+      `💎 **CẦN GIAO DỊCH TRÊN SÀN:** **${usdtNeeded.toFixed(2)} USDT**\n` +
       `💵 **TIỀN LỜI (LÃI):** **${Math.round(tongLoi).toLocaleString('vi-VN')} VNĐ**`;
     return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
   }
@@ -183,18 +189,22 @@ async function handleBotMe(msg) {
     const tongChi = giaBao * amount;
     const tongLoi = margin * amount;
 
+    // Tính số USDT cần giao dịch trên sàn khi khách bán AED (Nhận AED từ khách -> Bán USDT thu AED hoặc mua USDT trả khách)
+    const usdtNeeded = amount / data.aedBuy;
+
     const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
       `• Giá gốc xả chuẩn hạn mức: **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n` +
       `• Lợi nhuận áp dụng: **-${margin} VNĐ/AED**\n` +
       `• Tỷ giá báo khách: **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
       `👉 **TỔNG TIỀN TRẢ KHÁCH:** **${Math.round(tongChi).toLocaleString('vi-VN')} VNĐ**\n` +
+      `💎 **CẦN GIAO DỊCH TRÊN SÀN:** **${usdtNeeded.toFixed(2)} USDT**\n` +
       `💵 **TIỀN LỜI (LÃI):** **${Math.round(tongLoi).toLocaleString('vi-VN')} VNĐ**`;
     return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
   }
 }
 
 // ==========================================
-// 2. LOGIC BOT CON
+// 2. LOGIC BOT CON (GIỮ NGUYÊN HOẶC RÚT GỌN CHO KHÁCH)
 // ==========================================
 async function handleBotCon(msg) {
   const chatId = msg.chat.id;
@@ -214,14 +224,13 @@ async function handleBotCon(msg) {
       `👉 *Muốn check giá đúng hãy nhập lệnh mua hoặc bán + số tiền*\n` +
       `👉 *Ví dụ: mua 1000 hoặc ban 1000*\n\n` +
       `⚡ **GIAO DỊCH NHANH (EXPRESS):**\n` +
-      `🟢 **GIÁ MUA AED (VND ➔ AED):** 1 AED = ${giaMuaKhach.toLocaleString('vi-VN')} VNĐ (~${(giaMuaKhach/1000).toFixed(2)})\n` +
-      `🔴 **GIÁ BÁN AED (AED ➔ VND):** 1 AED = ${giaBanKhach.toLocaleString('vi-VN')} VNĐ (~${(giaBanKhach/1000).toFixed(2)})\n\n` +
+      `🟢 **GIÁ MUA AED (VND ➔ AED):** 1 AED = ${giaMuaKhach.toLocaleString('vi-VN')} VNĐ\n` +
+      `🔴 **GIÁ BÁN AED (AED ➔ VND):** 1 AED = ${giaBanKhach.toLocaleString('vi-VN')} VNĐ\n\n` +
       `📞 L.H WS: +84 373350255 để giao dịch / nhận ưu đãi hơn`;
 
     return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
   }
 
-  // Lệnh mua
   const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
   if (muaMatch) {
     const amount = parseFloat(muaMatch[2]);
@@ -239,7 +248,6 @@ async function handleBotCon(msg) {
     return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
   }
 
-  // Lệnh bán
   const banMatch = lowerText.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
   if (banMatch) {
     const amount = parseFloat(banMatch[2]);
