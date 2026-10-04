@@ -34,7 +34,7 @@ function getFullDateString() {
   const now = new Date();
   const timeStr = now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
   const dateStr = now.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-  return `${timeStr}${dateStr}`;
+  return `${timeStr} ${dateStr}`;
 }
 
 async function getBinanceP2PData(fiat, tradeType) {
@@ -121,25 +121,25 @@ async function handleBotMe(msg) {
 
   // Lệnh /gia hoặc gia: HIỆN GIÁ GỐC
   if (lowerText === 'gia' || lowerText === '/gia') {
-    botMe.sendMessage(chatId, "Đang lấy dữ liệu tỉ giá Binance P2P (Chuyển khoản Ngân hàng)...");
+    botMe.sendMessage(chatId, "Đang lấy dữ liệu tỉ giá Binance P2P...");
     const data = await fetchFullRates();
     if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu Binance!");
 
-    const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (GIÁ GỐC)**\n` +
-      `(Lọc phương thức Chuyển khoản Ngân hàng)\n\n` +
+    const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (GIÁ GỐC) (${getFullDateString()})**\n` +
+      `⚠️ *(Giá chỉ mang tính chất tham khảo)*\n` +
+      `👉 *Muốn check giá đúng hãy nhập lệnh mua hoặc bán + số tiền*\n` +
+      `👉 *Ví dụ: mua 1000 hoặc ban 1000*\n\n` +
       `⚡ **GIAO DỊCH NHANH (EXPRESS):**\n` +
-      `• VND: Mua ${data.express.vndBuy.toLocaleString('vi-VN')} \vert{} Bán ${data.express.vndSell.toLocaleString('vi-VN')}\n` +
-      `• AED: Mua ${data.express.aedBuy.toFixed(2)} \vert{} Bán ${data.express.aedSell.toFixed(2)}\n` +
+      `• VND: Mua ${data.express.vndBuy.toLocaleString('vi-VN')} | Bán ${data.express.vndSell.toLocaleString('vi-VN')}\n` +
+      `• AED: Mua ${data.express.aedBuy.toFixed(2)} | Bán ${data.express.aedSell.toFixed(2)}\n` +
       `🟢 **GIÁ MUA AED GỐC:** **1 AED = ${data.express.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
       `🔴 **GIÁ BÁN AED GỐC:** **1 AED = ${data.express.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
       `📈 **P2P TRUNG BÌNH (TOP 2-4):**\n` +
-      `• VND: Mua ${Math.round(data.avg.vndBuy).toLocaleString('vi-VN')} \vert{} Bán ${Math.round(data.avg.vndSell).toLocaleString('vi-VN')}\n` +
-      `• AED: Mua ${data.avg.aedBuy.toFixed(2)} \vert{} Bán ${data.avg.aedSell.toFixed(2)}\n` +
+      `• VND: Mua ${Math.round(data.avg.vndBuy).toLocaleString('vi-VN')} | Bán ${Math.round(data.avg.vndSell).toLocaleString('vi-VN')}\n` +
+      `• AED: Mua ${data.avg.aedBuy.toFixed(2)} | Bán ${data.avg.aedSell.toFixed(2)}\n` +
       `🟢 Giá Mua AED gốc: ${data.avg.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
       `🔴 Giá Bán AED gốc: ${data.avg.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
-      `💡 **CÚ PHÁP TÍNH TIỀN:**\n` +
-      `• \`mua [số lượng]\` hoặc \`/mua [số lượng]\`\n` +
-      `• \`ban [số lượng]\` hoặc \`/ban [số lượng]\``;
+      `📞 L.H WS: +84 373350255 để giao dịch / nhận ưu đãi hơn`;
 
     return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
   }
@@ -190,7 +190,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC BOT CON (Cộng/Trừ 200 khi hỏi giá, áp dụng mốc khi tính tiền)
+// 2. LOGIC BOT CON
 // ==========================================
 async function handleBotCon(msg) {
   const chatId = msg.chat.id;
@@ -206,7 +206,7 @@ async function handleBotCon(msg) {
     const giaMuaKhach = data.express.giaMuaGoc + 200;
     const giaBanKhach = data.express.giaBanGoc - 200;
 
-   const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE (${getFullDateString()})**\n` +
+    const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE (${getFullDateString()})**\n` +
       `⚠️ *(Giá chỉ mang tính chất tham khảo)*\n` +
       `👉 *Muốn check giá đúng hãy nhập lệnh mua hoặc bán + số tiền*\n` +
       `👉 *Ví dụ: mua 1000 hoặc ban 1000*\n\n` +
@@ -216,6 +216,10 @@ async function handleBotCon(msg) {
       `📞 L.H WS: +84 373350255 để giao dịch / nhận ưu đãi hơn`;
 
     return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
+  }
+
+  // Lệnh mua
+  const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
   if (muaMatch) {
     const amount = parseFloat(muaMatch[2]);
     botCon.sendMessage(chatId, `⏳ Đang tính tiền mua ${amount.toLocaleString('vi-VN')} AED...`);
@@ -232,7 +236,7 @@ async function handleBotCon(msg) {
     return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
   }
 
-  // Lệnh bán (Áp dụng theo bảng quy định mốc)
+  // Lệnh bán
   const banMatch = lowerText.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
   if (banMatch) {
     const amount = parseFloat(banMatch[2]);
