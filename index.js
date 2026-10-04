@@ -206,8 +206,10 @@ async function handleBotCon(msg) {
     const giaMuaKhach = data.express.giaMuaGoc + 200;
     const giaBanKhach = data.express.giaBanGoc - 200;
 
-    const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE (${getFullDateString()})**\n` +
-      `(Lọc phương thức chuyển khoản ngân hàng)\n\n` +
+   const msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE (${getFullDateString()})**\n` +
+      `⚠️ *(Giá chỉ mang tính chất tham khảo)*\n` +
+      `👉 *Muốn check giá đúng hãy nhập lệnh mua hoặc bán + số tiền*\n` +
+      `👉 *Ví dụ: mua 1000 hoặc ban 1000*\n\n` +
       `⚡ **GIAO DỊCH NHANH (EXPRESS):**\n` +
       `🟢 **GIÁ MUA AED (VND ➔ AED):** 1 AED = ${giaMuaKhach.toLocaleString('vi-VN')} VNĐ (~${(giaMuaKhach/1000).toFixed(2)})\n` +
       `🔴 **GIÁ BÁN AED (AED ➔ VND):** 1 AED = ${giaBanKhach.toLocaleString('vi-VN')} VNĐ (~${(giaBanKhach/1000).toFixed(2)})`;
