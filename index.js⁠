@@ -1,0 +1,97 @@
+const TelegramBot = require('node-telegram-bot-api');
+const axios = require('axios');
+
+const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const bot = new TelegramBot(TOKEN, { polling: true });
+
+async function getBinanceP2PRate(tradeType) {
+  try {
+    const response = await axios.post(
+      'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search',
+      {
+        fiat: 'VND',
+        page: 1,
+        rows: 5,
+        tradeType: tradeType,
+        asset: 'USDT',
+        countries: [],
+        payTypes: ['BANK'],
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    if (response.data && response.data.data && response.data.data.length > 0) {
+      return parseFloat(response.data.data[0].adv.price);
+    }
+  } catch (error) {
+    console.error('Binance API Error:', error.message);
+  }
+  return null;
+}
+
+function calculateMargin(amount) {
+  if (amount <= 1000) return 150;
+  if (amount <= 5000) return 100;
+  return 50;
+}
+
+bot.onText(/\/mua(?:\s+(.+))?/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const amountStr = match[1];
+
+  if (!amountStr || isNaN(amountStr)) {
+    return bot.sendMessage(chatId, '❌ Vui lòng nhập số lượng AED hợp lệ. Ví dụ: `/mua 8000`', { parse_mode: 'Markdown' });
+  }
+
+  const amountAED = parseFloat(amountStr);
+  const rawRate = await getBinanceP2PRate('SELL');
+
+  if (!rawRate) {
+    return bot.sendMessage(chatId, '⚠️ Không lấy được tỷ giá real-time từ Binance. Vui lòng thử lại sau.');
+  }
+
+  const margin = calculateMargin(amountAED);
+  const finalRate = Math.round(rawRate + margin);
+  const totalVND = Math.round(amountAED * finalRate);
+
+  const responseText = 
+`🇦🇪 *BÁO GIÁ MUA AED*
+----------------------------
+• *Số lượng:* ${amountAED.toLocaleString('vi-VN')} AED
+• *Tỷ giá áp dụng:* ${finalRate.toLocaleString('vi-VN')} VND/AED
+----------------------------
+💰 *TỔNG TIỀN:* *${totalVND.toLocaleString('vi-VN')} VND*`;
+
+  bot.sendMessage(chatId, responseText, { parse_mode: 'Markdown' });
+});
+
+bot.onText(/\/ban(?:\s+(.+))?/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const amountStr = match[1];
+
+  if (!amountStr || isNaN(amountStr)) {
+    return bot.sendMessage(chatId, '❌ Vui lòng nhập số lượng AED hợp lệ. Ví dụ: `/ban 8000`', { parse_mode: 'Markdown' });
+  }
+
+  const amountAED = parseFloat(amountStr);
+  const rawRate = await getBinanceP2PRate('BUY');
+
+  if (!rawRate) {
+    return bot.sendMessage(chatId, '⚠️ Không lấy được tỷ giá real-time từ Binance. Vui lòng thử lại sau.');
+  }
+
+  const margin = calculateMargin(amountAED);
+  const finalRate = Math.round(rawRate - margin);
+  const totalVND = Math.round(amountAED * finalRate);
+
+  const responseText = 
+`🇦🇪 *BÁO GIÁ BÁN AED*
+----------------------------
+• *Số lượng:* ${amountAED.toLocaleString('vi-VN')} AED
+• *Tỷ giá áp dụng:* ${finalRate.toLocaleString('vi-VN')} VND/AED
+----------------------------
+💰 *TỔNG TIỀN KHÁCH NHẬN:* *${totalVND.toLocaleString('vi-VN')} VND*`;
+
+  bot.sendMessage(chatId, responseText, { parse_mode: 'Markdown' });
+});
+
+console.log('Bot Khach AED starting...');
