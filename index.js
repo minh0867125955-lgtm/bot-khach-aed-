@@ -132,7 +132,7 @@ async function fetchStableRates() {
 }
 
 // ==========================================
-// 1. LOGIC XỬ LÝ CHO BOT MẸ (GIÁ GỐC + ĐẦY ĐỦ CÁC MỨC)
+// 1. LOGIC XỬ LÝ CHO BOT MẸ (QUẢN LÝ TẤT CẢ TỪ A-Z)
 // ==========================================
 async function handleBotMe(msg) {
   if (!msg?.text) return;
@@ -218,7 +218,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (GIÁ GỐC + 1 MỨC DUY NHẤT)
+// 2. LOGIC XỬ LÝ CHO BOT CON (THU HÚT KHÁCH TỐI ĐA)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg?.text) return;
@@ -238,28 +238,27 @@ async function handleBotCon(msg) {
       const welcomeMsg = `🌟 **CHÀO MỪNG QUÝ KHÁCH ĐẾN VỚI HỆ THỐNG QUY ĐỔI AED TỰ ĐỘNG** 🌟\n\n` +
         `Cảm ơn Quý khách đã tin tưởng và lựa chọn dịch vụ! 🙏\n\n` +
         `📌 **HƯỚNG DẪN SỬ DỤNG:**\n` +
-        `• Xem giá tham khảo: Gõ **gia** hoặc \`/gia\`\n` +
+        `• Xem tỷ giá nhanh: Gõ **gia** hoặc \`/gia\`\n` +
         `• Tính tiền Mua: Gõ \`mua [số lượng]\` (VD: \`mua 1000\`)\n` +
         `• Tính tiền Bán: Gõ \`ban [số lượng]\` (VD: \`ban 1000\`)\n\n` +
-        `⚠️ **LƯU Ý:** Đây là mức **giá tham khảo** và chỉ có hiệu lực trong **10 phút**.\n` +
+        `⚠️ **LƯU Ý:** Báo giá có hiệu lực trong **10 phút**.\n` +
         `📞 **Hỗ trợ giao dịch:** +84 373350255`;
       return botCon.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
     }
 
-    // Bot con lệnh /gia: Hiển thị giá gốc tham khảo + 1 mức duy nhất + Cảnh báo 10 phút
+    // Bot con lệnh /gia: Gọn gàng, bắt mắt, tập trung tối đa vào giá Mua/Bán để thu hút khách chốt đơn
     if (text === 'gia' || text === '/gia') {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Hệ thống đang bận kết nối dữ liệu! Quý khách vui lòng thử lại sau.");
 
       const rNho = { mua: calculateBuy(500, data).giaBao, ban: calculateSell(500, data).giaBao };
 
-      const reportMsg = `📊 **BÁO CÁO TỶ GIÁ THAM KHẢO** (${getFullDateString()})\n\n` +
-        `• Giá gốc tham khảo: **1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `💎 **MỨC GIAO DỊCH CHUẨN:**\n` +
-        `• Khách Mua: 1 AED = ${rNho.mua.toLocaleString('vi-VN')} VNĐ\n` +
-        `• Khách Bán: 1 AED = ${rNho.ban.toLocaleString('vi-VN')} VNĐ\n\n` +
-        `⚠️ **CẢNH BÁO:** Đây là mức **giá tham khảo** và chỉ có **hiệu lực trong 10 phút**.\n` +
-        `📞 Liên hệ Hotline/WhatsApp: **+84 373350255** để chốt giao dịch`;
+      const reportMsg = `🔥 **TỶ GIÁ QUY ĐỔI AED TỐT NHẤT HÔM NAY** (${getFullDateString()})\n\n` +
+        `🟢 **KHÁCH MUA (Nhận AED):**\n👉 **1 AED = ${rNho.mua.toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `🔴 **KHÁCH BÁN (Bán AED):**\n👉 **1 AED = ${rNho.ban.toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `──────────────────\n` +
+        `⚠️ *Mức giá tham khảo, có hiệu lực trong 10 phút.*\n` +
+        `📞 **Chốt giao dịch ngay qua Hotline/WhatsApp:** +84 373350255`;
 
       return botCon.sendMessage(chatId, reportMsg, { parse_mode: 'Markdown' });
     }
