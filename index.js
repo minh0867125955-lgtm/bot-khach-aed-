@@ -134,7 +134,7 @@ async function fetchStableRates() {
 }
 
 // ==========================================
-// 1. LOGIC XỬ LÝ CHO BOT MẸ (GIỮ NGUYÊN HOÀN TOÀN)
+// 1. LOGIC XỬ LÝ CHO BOT MẸ (GIỮ NGUYÊN 100%)
 // ==========================================
 async function handleBotMe(msg) {
   if (!msg || !msg.text) return;
@@ -232,7 +232,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (LÀM TRÒN TỶ GIÁ ĐẾN HÀNG CHỤC & NHÂN LÊN)
+// 2. LOGIC XỬ LÝ CHO BOT CON (CẮT BỎ HẲN SỐ CUỐI)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg || !msg.text) return;
@@ -256,7 +256,7 @@ async function handleBotCon(msg) {
         `• Xem bảng giá: Gõ **gia** hoặc **/gia**\n` +
         `• Mua AED: Gõ **mua + số tiền** (VD: \`mua 1000\`)\n` +
         `• Bán AED: Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n` +
-        `⚠️️ **Báo giá có hiệu lực trong 10 phút. Quá thời gian vui lòng gõ lại lệnh để cập nhật giá mới.**\n` +
+        `⚠️ **Báo giá có hiệu lực trong 10 phút. Quá thời gian vui lòng gõ lại lệnh để cập nhật giá mới.**\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
       return botCon.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
     }
@@ -265,8 +265,8 @@ async function handleBotCon(msg) {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
-      const muaThamKhao = Math.round((data.giaMuaGoc + 100) / 10) * 10;
-      const banThamKhao = Math.round((data.giaBanGoc - 100) / 10) * 10;
+      const muaThamKhao = Math.floor((data.giaMuaGoc + 100) / 10) * 10;
+      const banThamKhao = Math.floor((data.giaBanGoc - 100) / 10) * 10;
 
       const msgText = `📊 **BẢNG TỶ GIÁ THAM KHẢO (${getFullDateString()})**\n` +
         `👉 *Nhập lệnh: mua + số tiền HOẶC ban + số tiền*\n\n` +
@@ -278,7 +278,7 @@ async function handleBotCon(msg) {
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh MUA cho Bot Con (Làm tròn tỷ giá đến hàng chục và nhân lên)
+    // Xử lý lệnh MUA cho Bot Con (Cắt bỏ hẳn chữ số cuối bằng Math.floor(/10)*10)
     const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
     if (muaMatch) {
       const amount = parseFloat(muaMatch[2]);
@@ -287,7 +287,7 @@ async function handleBotCon(msg) {
 
       const profit = getProfitByAmount(amount);
       const rawRate = data.giaMuaGoc + profit;
-      const cleanRate = Math.round(rawRate / 10) * 10; // Làm tròn đến hàng chục
+      const cleanRate = Math.floor(rawRate / 10) * 10; // Bỏ hẳn số cuối (VD: 7.078 -> 7.070)
       const totalVnd = cleanRate * amount;
 
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
@@ -299,7 +299,7 @@ async function handleBotCon(msg) {
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh BÁN cho Bot Con (Làm tròn tỷ giá đến hàng chục và nhân lên)
+    // Xử lý lệnh BÁN cho Bot Con (Cắt bỏ hẳn chữ số cuối)
     const banMatch = lowerText.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
     if (banMatch) {
       const amount = parseFloat(banMatch[2]);
@@ -315,8 +315,8 @@ async function handleBotCon(msg) {
       const baseVnd = amount * giaBanCoBan;
       const rawTongChi = baseVnd - feeVnd;
 
-      // Tính tỷ giá quy đổi thực tế và làm tròn đến hàng chục
-      const cleanRate = Math.round((rawTongChi / amount) / 10) * 10;
+      const rawRateSell = rawTongChi / amount;
+      const cleanRate = Math.floor(rawRateSell / 10) * 10; // Bỏ hẳn số cuối
       const tongChi = cleanRate * amount;
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
@@ -343,4 +343,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công, Bot Mẹ giữ nguyên, Bot Con đã làm tròn tỷ giá và nhân chuẩn!");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Bot Mẹ giữ nguyên, Bot Con đã cắt bỏ hẳn số cuối chuẩn xác.");
