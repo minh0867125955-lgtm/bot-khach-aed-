@@ -51,7 +51,7 @@ function saveNewUser(chatId) {
 const BINANCE_FEE_PERCENT = 2.0; 
 
 // ==========================================
-// HÀM TÍNH BIÊN ĐỘ THEO 4 MỐC
+// HÀM TÍNH BIÊN ĐỘ / PHẦN TRĂM THEO MỐC
 // ==========================================
 function getProfitByAmount(amount) {
   if (amount < 1000) return 200;           
@@ -60,11 +60,12 @@ function getProfitByAmount(amount) {
   return 50;                               
 }
 
-function getSellMarginByAmount(amount) {
-  if (amount < 1000) return 200;           
-  if (amount >= 1000 && amount < 5000) return 150;     
-  if (amount >= 5000 && amount <= 15000) return 100;   
-  return 60;                               
+// Biên độ phần trăm (%) chiết khấu khi khách BÁN AED
+function getSellPercentByAmount(amount) {
+  if (amount < 1000) return 2.5;           // Chiết khấu 2.5%
+  if (amount >= 1000 && amount < 5000) return 2.0;     // Chiết khấu 2.0%
+  if (amount >= 5000 && amount <= 15000) return 1.5;   // Chiết khấu 1.5%
+  return 1.0;                              // Chiết khấu 1.0% cho VIP (> 15,000 AED)
 }
 
 function getFullDateString() {
@@ -146,7 +147,7 @@ async function handleBotMe(msg) {
     if (lowerText === '/start') {
       const welcomeMsg = `🤖 **CHÀO MỪNG ĐẾN VỚI HỆ THỐNG BÁO GIÁ AED (BOT MẸ)**\n\n` +
         `📌 **HƯỚNG DẪN SỬ DỤNG:**\n` +
-        `• Xem báo cáo 4 mức: Gõ **gia** hoặc **/gia**\n` +
+        `• Xem báo cáo tỷ giá: Gõ **gia** hoặc **/gia**\n` +
         `• Tính tiền mua: Gõ **mua + số tiền** (VD: \`mua 1000\`)\n` +
         `• Tính tiền bán: Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
@@ -154,23 +155,13 @@ async function handleBotMe(msg) {
     }
 
     if (lowerText === 'gia' || lowerText === '/gia') {
-      await botMe.sendMessage(chatId, "⏳ Đang quét báo cáo tỷ giá 4 mức trên Binance P2P...");
+      await botMe.sendMessage(chatId, "⏳ Đang quét báo cáo tỷ giá trên Binance P2P...");
       const data = await fetchStableRates();
       if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu Binance!");
 
       let msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (BOT MẸ)** (${getFullDateString()})\n\n` +
-        `⚡ **MỨC NHỎ (Dưới 1.000 AED):**\n` +
-        `🟢 Bán: 1 AED = ${(data.giaMuaGoc + 200).toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Thu mua: 1 AED = ${(data.giaBanGoc - 200).toLocaleString('vi-VN')} VNĐ\n\n` +
-        `⚡ **MỨC TRUNG BÌNH (1.000 - 5.000 AED):**\n` +
-        `🟢 Bán: 1 AED = ${(data.giaMuaGoc + 150).toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Thu mua: 1 AED = ${(data.giaBanGoc - 150).toLocaleString('vi-VN')} VNĐ\n\n` +
-        `⚡ **MỨC LỚN (5.000 - 15.000 AED):**\n` +
-        `🟢 Bán: 1 AED = ${(data.giaMuaGoc + 100).toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Thu mua: 1 AED = ${(data.giaBanGoc - 100).toLocaleString('vi-VN')} VNĐ\n\n` +
-        `⚡ **MỨC VIP (Trên 15.000 AED):**\n` +
-        `🟢 Bán: 1 AED = ${(data.giaMuaGoc + 50).toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Thu mua: 1 AED = ${(data.giaBanGoc - 60).toLocaleString('vi-VN')} VNĐ\n\n` +
+        `🟢 **GIÁ MUA GỐC SÀN:** 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 **GIÁ BÁN GỐC SÀN:** 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
 
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
@@ -215,8 +206,8 @@ async function handleBotMe(msg) {
       const data = await fetchStableRates();
       if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
 
-      const sellMargin = getSellMarginByAmount(amount);
-      const giaBao = data.giaBanGoc - sellMargin; 
+      const sellPercent = getSellPercentByAmount(amount);
+      const giaBao = Math.round(data.giaBanGoc * (1 - sellPercent / 100)); 
       
       const usdtAedNeeded = amount / data.usdtAedPrice;
       const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100);
@@ -225,11 +216,11 @@ async function handleBotMe(msg) {
       
       const baseVnd = amount * giaBao;
       const tongChi = Math.round(baseVnd - feeVnd);
-      const totalLoi = sellMargin * amount;
+      const totalLoi = (data.giaBanGoc - giaBao) * amount;
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Giá gốc chuẩn sàn: **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n` +
-        `• Biên độ điều chỉnh: **-${sellMargin} VNĐ/AED**\n` +
+        `• Chiết khấu biên độ: **-${sellPercent}%**\n` +
         `• Tỷ giá báo khách: **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
         `💎 **CẦN GIAO DỊCH TRÊN SÀN:** **~${totalUsdtNeeded} USDT** (Đã gồm đệm 2%)\n` +
         `💸 **CHI PHÍ ĐỆM KHÁCH CHỊU (2%):** **${Math.round(feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
@@ -280,7 +271,7 @@ async function handleBotCon(msg) {
       const msgText = `📊 **BÁO CÁO TỶ GIÁ (${getFullDateString()})**\n` +
         `👉 *Nhập lệnh mua/bán + số tiền (VD: mua 1000 hoặc ban 1000)*\n\n` +
         `🟢 **GIÁ MUA AED:** 1 AED = ${(data.giaMuaGoc + 200).toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 **GIÁ BÁN AED:** 1 AED = ${(data.giaBanGoc - 200).toLocaleString('vi-VN')} VNĐ\n\n` +
+        `🔴 **GIÁ BÁN AED:** 1 AED = ${(data.giaBanGoc - Math.round(data.giaBanGoc * 0.025)).toLocaleString('vi-VN')} VNĐ\n\n` +
         `💡 *Mức giá trên là tham khảo cơ bản. Giao dịch số lượng lớn sẽ được tự động áp dụng ưu đãi tốt hơn khi nhập lệnh!*\n\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
 
@@ -313,21 +304,22 @@ async function handleBotCon(msg) {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
-      const sellMargin = getSellMarginByAmount(amount);
-      const giaBanCoBan = data.giaBanGoc - sellMargin;
+      const sellPercent = getSellPercentByAmount(amount);
+      const giaBao = Math.round(data.giaBanGoc * (1 - sellPercent / 100));
       
       const usdtAedNeeded = amount / data.usdtAedPrice;
       const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100);
       const feeVnd = feeUsdt * data.usdtVndPrice;
-      const baseVnd = amount * giaBanCoBan;
+      const baseVnd = amount * giaBao;
       const tongChi = Math.round(baseVnd - feeVnd);
 
-      // Tỷ giá hiệu dụng cho khách (đã gộp phí đệm vào tỷ giá để khách nhân không bị lệch)
-      const effectiveRate = Math.round(tongChi / amount);
+      // Tỷ giá trọn gói (Clean Rate) đã gộp ngầm chi phí để khách tự nhân khớp 100%
+      const cleanRate = Math.round(tongChi / amount);
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
-        `• Tỷ giá áp dụng: **1 AED = ${effectiveRate.toLocaleString('vi-VN')} VNĐ**\n` +
+        `• Tỷ giá giao dịch: **1 AED = ${cleanRate.toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN TRẢ KHÁCH:** **${tongChi.toLocaleString('vi-VN')} VNĐ**`;
+      
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
   } catch (err) {
