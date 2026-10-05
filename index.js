@@ -9,7 +9,6 @@ const path = require('path');
 const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_BOT_TOKEN || 'NHAP_TOKEN_BOT_ME_CUA_BAN';
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON || 'NHAP_TOKEN_BOT_CON_CUA_BAN';
 
-// Đã điền chính xác Telegram ID của bạn làm Admin
 const ADMIN_TELEGRAM_ID = '7466244815'; 
 
 if (!TOKEN_ME) {
@@ -20,7 +19,6 @@ if (!TOKEN_ME) {
 const botMe = new TelegramBot(TOKEN_ME, { polling: true });
 const botCon = TOKEN_CON ? new TelegramBot(TOKEN_CON, { polling: true }) : null;
 
-// Quản lý file lưu danh sách user ngầm của Bot Con
 const USER_FILE = path.join(__dirname, 'bot_con_users.json');
 
 function getStoredUsers() {
@@ -47,12 +45,8 @@ function saveNewUser(chatId) {
   }
 }
 
-// Lớp giáp an toàn tuyệt đối chống lỗ biến động sàn (2.0%)
 const BINANCE_FEE_PERCENT = 2.0; 
 
-// ==========================================
-// HÀM TÍNH BIÊN ĐỘ LÃI
-// ==========================================
 function getProfitByAmount(amount) {
   if (amount < 1000) return 100;           
   if (amount >= 1000 && amount < 5000) return 75;     
@@ -232,7 +226,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (CẮT BỎ HẲN SỐ CUỐI)
+// 2. LOGIC XỬ LÝ CHO BOT CON (CÂN ĐỐI LỢI NHUẬN 2 CHIỀU)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg || !msg.text) return;
@@ -265,7 +259,7 @@ async function handleBotCon(msg) {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
-      const muaThamKhao = Math.floor((data.giaMuaGoc + 100) / 10) * 10;
+      const muaThamKhao = Math.ceil((data.giaMuaGoc + 100) / 10) * 10;
       const banThamKhao = Math.floor((data.giaBanGoc - 100) / 10) * 10;
 
       const msgText = `📊 **BẢNG TỶ GIÁ THAM KHẢO (${getFullDateString()})**\n` +
@@ -278,7 +272,7 @@ async function handleBotCon(msg) {
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh MUA cho Bot Con (Cắt bỏ hẳn chữ số cuối bằng Math.floor(/10)*10)
+    // Xử lý lệnh MUA cho Bot Con -> Dùng Math.ceil để làm tròn LÊN (Bảo vệ lãi chiều khách mua)
     const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
     if (muaMatch) {
       const amount = parseFloat(muaMatch[2]);
@@ -287,7 +281,7 @@ async function handleBotCon(msg) {
 
       const profit = getProfitByAmount(amount);
       const rawRate = data.giaMuaGoc + profit;
-      const cleanRate = Math.floor(rawRate / 10) * 10; // Bỏ hẳn số cuối (VD: 7.078 -> 7.070)
+      const cleanRate = Math.ceil(rawRate / 10) * 10; // Làm tròn LÊN hàng chục (VD: 7.073 -> 7.080)
       const totalVnd = cleanRate * amount;
 
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
@@ -299,7 +293,7 @@ async function handleBotCon(msg) {
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh BÁN cho Bot Con (Cắt bỏ hẳn chữ số cuối)
+    // Xử lý lệnh BÁN cho Bot Con -> Dùng Math.floor để cắt bỏ/làm tròn XUỐNG (Tăng thêm lãi chiều khách bán)
     const banMatch = lowerText.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
     if (banMatch) {
       const amount = parseFloat(banMatch[2]);
@@ -316,7 +310,7 @@ async function handleBotCon(msg) {
       const rawTongChi = baseVnd - feeVnd;
 
       const rawRateSell = rawTongChi / amount;
-      const cleanRate = Math.floor(rawRateSell / 10) * 10; // Bỏ hẳn số cuối
+      const cleanRate = Math.floor(rawRateSell / 10) * 10; // Cắt bỏ/làm tròn XUỐNG hàng chục (VD: 7.078 -> 7.070)
       const tongChi = cleanRate * amount;
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
@@ -343,4 +337,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Bot Mẹ giữ nguyên, Bot Con đã cắt bỏ hẳn số cuối chuẩn xác.");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Đã cân đối tối ưu lợi nhuận cả 2 chiều Mua/Bán cho Bot Con.");
