@@ -10,9 +10,9 @@ const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_BOT_T
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON || 'NHAP_TOKEN_BOT_CON_CUA_BAN';
 const ADMIN_TELEGRAM_ID = '7466244815'; 
 
-// Mức phí cấu hình chuẩn (Đã hạ phí bán xuống 1.6%)
+// Mức phí cấu hình chuẩn (Phí bán 1.55%, VIP margin nâng lên 40)
 const BUY_FEE_PERCENT = 1.85; 
-const SELL_FEE_PERCENT = 1.6; 
+const SELL_FEE_PERCENT = 1.55; 
 
 if (!TOKEN_ME) {
   console.error("LỖI: Chưa khai báo Telegram Token cho Bot Mẹ!");
@@ -72,9 +72,9 @@ function calculateBuy(amount, data) {
   return { profit, giaBao, totalVnd, totalUsdtNeeded, feeVnd, totalLoi };
 }
 
-// Hàm tính toán lệnh BÁN
+// Hàm tính toán lệnh BÁN (Đã nâng margin VIP >15.000 AED lên 40)
 function calculateSell(amount, data) {
-  const sellMargin = amount < 1000 ? 100 : amount < 5000 ? 75 : amount <= 15000 ? 50 : 25;
+  const sellMargin = amount < 1000 ? 100 : amount < 5000 ? 75 : amount <= 15000 ? 50 : 40;
   const giaBanCoBan = data.giaBanGoc - sellMargin;
   const baseVnd = amount * giaBanCoBan;
   const feeVnd = baseVnd * (SELL_FEE_PERCENT / 100);
@@ -180,7 +180,7 @@ async function handleBotMe(msg) {
       const amount = parseFloat(muaMatch[2]);
       await botMe.sendMessage(chatId, `⏳ Đang tính toán cho ${amount.toLocaleString('vi-VN')} AED...`);
       const data = await fetchStableRates();
-      if (!data) return botMe.sendMessage(chatId, "⚠️️ Lỗi kết nối dữ liệu từ sàn!");
+      if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
 
       const res = calculateBuy(amount, data);
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED (BOT MẸ)**\n\n` +
