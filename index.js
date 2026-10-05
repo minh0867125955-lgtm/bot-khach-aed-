@@ -141,14 +141,40 @@ async function handleBotMe(msg) {
 
   try {
     if (text === '/start') {
-      return botMe.sendMessage(chatId, `🤖 **HỆ THỐNG QUẢN LÝ BÁO GIÁ AED (BOT MẸ)**\n\n• Gõ **gia** để xem giá gốc sàn\n• Gõ **mua + số tiền** (VD: \`mua 1000\`)\n• Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n📞 L.H WS: +84 373350255`, { parse_mode: 'Markdown' });
+      return botMe.sendMessage(chatId, `🤖 **HỆ THỐNG QUẢN LÝ BÁO GIÁ AED (BOT MẸ)**\n\n• Gõ **gia** để xem bảng tỷ giá các mức\n• Gõ **mua + số tiền** (VD: \`mua 1000\`)\n• Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n📞 L.H WS: +84 373350255`, { parse_mode: 'Markdown' });
     }
 
     if (text === 'gia' || text === '/gia') {
-      await botMe.sendMessage(chatId, "⏳ Đang quét tỷ giá Binance P2P...");
+      await botMe.sendMessage(chatId, "⏳ Đang quét báo cáo tỷ giá 4 mức trên Binance P2P...");
       const data = await fetchStableRates();
-      if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
-      return botMe.sendMessage(chatId, `📊 **BÁO CÁO GIÁ GỐC SÀN (BOT MẸ)** (${getFullDateString()})\n\n🟢 Giá mua gốc: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n🔴 Giá bán gốc: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ`, { parse_mode: 'Markdown' });
+      if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
+
+      // Tính toán sẵn các mức tiêu biểu cho 4 tier
+      const r1Buy = calculateBuy(500, data).giaBao;
+      const r1Sell = calculateSell(500, data).giaBao;
+      const r2Buy = calculateBuy(2000, data).giaBao;
+      const r2Sell = calculateSell(2000, data).giaBao;
+      const r3Buy = calculateBuy(10000, data).giaBao;
+      const r3Sell = calculateSell(10000, data).giaBao;
+      const r4Buy = calculateBuy(20000, data).giaBao;
+      const r4Sell = calculateSell(20000, data).giaBao;
+
+      const reportMsg = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (BOT MẸ)** (${getFullDateString()})\n\n` +
+        `⚡ **MỨC NHỎ (Dưới 1.000 AED):**\n` +
+        `🟢 Bán cho khách: 1 AED = ${r1Buy.toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 Thu mua từ khách: 1 AED = ${r1Sell.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `⚡ **MỨC TRUNG BÌNH (Từ 1.000 - 5.000 AED):**\n` +
+        `🟢 Bán cho khách: 1 AED = ${r2Buy.toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 Thu mua từ khách: 1 AED = ${r2Sell.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `⚡ **MỨC LỚN (Từ 5.000 - 15.000 AED):**\n` +
+        `🟢 Bán cho khách: 1 AED = ${r3Buy.toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 Thu mua từ khách: 1 AED = ${r3Sell.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `⚡ **MỨC VIP (Trên 15.000 AED):**\n` +
+        `🟢 Bán cho khách: 1 AED = ${r4Buy.toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 Thu mua từ khách: 1 AED = ${r4Sell.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `📞 L.H WS: +84 373350255 để giao dịch`;
+
+      return botMe.sendMessage(chatId, reportMsg, { parse_mode: 'Markdown' });
     }
 
     const muaMatch = text.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
@@ -242,7 +268,7 @@ async function handleBotCon(msg) {
     if (banMatch) {
       const amount = parseFloat(banMatch[2]);
       const data = await fetchStableRates();
-      if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
+      if (!data) return botCon.sendMessage(chatId, "⚠️️ Lỗi kết nối dữ liệu!");
 
       const res = calculateSell(amount, data);
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
