@@ -128,7 +128,7 @@ async function fetchStableRates() {
 }
 
 // ==========================================
-// 1. LOGIC XỬ LÝ CHO BOT MẸ (ĐÃ SỬA CÔNG THỨC TRỪ CHI PHÍ ĐỆM VÀO LÃI)
+// 1. LOGIC XỬ LÝ CHO BOT MẸ (ĐÃ CHUẨN XÁC CÔNG THỨC LÃI)
 // ==========================================
 async function handleBotMe(msg) {
   if (!msg || !msg.text) return;
@@ -178,8 +178,8 @@ async function handleBotMe(msg) {
       
       const totalVnd = giaBao * amount;
       
-      // ĐÃ SỬA: Lãi thực nhận = Tổng tiền thu của khách - Vốn gốc - Chi phí đệm 2% thực tế
-      const totalLoi = totalVnd - (data.giaMuaGoc * amount) - feeVnd;
+      // LÃI THỰC NHẬN CHUẨN = Biên độ lợi nhuận nhân với số lượng AED
+      const totalLoi = profit * amount;
 
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED (BOT MẸ)**\n\n` +
         `• Giá gốc chuẩn sàn: **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -217,8 +217,8 @@ async function handleBotMe(msg) {
       
       const tongChi = giaBao * amount;
       
-      // ĐÃ SỬA: Lãi thực nhận chiều bán
-      const totalLoi = (data.giaBanGoc * amount) - tongChi - feeVnd;
+      // LÃI THỰC NHẬN CHIỀU BÁN CHUẨN = Biên độ điều chỉnh nhân với số lượng AED
+      const totalLoi = sellMargin * amount;
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED (BOT MẸ)**\n\n` +
         `• Giá gốc chuẩn sàn: **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -348,4 +348,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Đã vá lỗi công thức tính lãi thực nhận chính xác theo chi phí sàn thực tế.");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Công thức tính lãi, làm tròn và hiển thị đã chuẩn xác tuyệt đối.");
