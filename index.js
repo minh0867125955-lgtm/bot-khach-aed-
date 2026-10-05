@@ -223,7 +223,9 @@ async function handleBotMe(msg) {
       const totalUsdtNeeded = (usdtAedNeeded + feeUsdt).toFixed(2);
       const feeVnd = feeUsdt * data.usdtVndPrice;
       const tongChi = Math.round(giaBao * amount);
-      const totalLoi = sellMargin * amount;
+      
+      // ĐÃ SỬA: Lãi thực nhận trừ đi chi phí đệm 2% trên sàn
+      const totalLoi = Math.round((sellMargin * amount) - feeVnd);
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Giá gốc chuẩn sàn: **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -232,7 +234,7 @@ async function handleBotMe(msg) {
         `💎 **CẦN GIAO DỊCH TRÊN SÀN:** **~${totalUsdtNeeded} USDT** (Đã gồm đệm 2%)\n` +
         `💸 **CHI PHÍ ĐỆM (2%):** **${Math.round(feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN TRẢ KHÁCH:** **${tongChi.toLocaleString('vi-VN')} VNĐ**\n` +
-        `💵 **LÃI THỰC NHẬN:** **${Math.round(totalLoi).toLocaleString('vi-VN')} VNĐ**`;
+        `💵 **LÃI THỰC NHẬN:** **${totalLoi > 0 ? totalLoi.toLocaleString('vi-VN') : 0} VNĐ**`;
 
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
