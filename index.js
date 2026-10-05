@@ -51,20 +51,20 @@ function saveNewUser(chatId) {
 const BINANCE_FEE_PERCENT = 2.0; 
 
 // ==========================================
-// HÀM TÍNH BIÊN ĐỘ LÃI (ĐÃ GIẢM 50% SO VỚI MỨC GỐC)
+// HÀM TÍNH BIÊN ĐỘ LÃI
 // ==========================================
 function getProfitByAmount(amount) {
-  if (amount < 1000) return 100;           // Giảm từ 200 xuống 100
-  if (amount >= 1000 && amount < 5000) return 75;     // Giảm từ 150 xuống 75
-  if (amount >= 5000 && amount <= 15000) return 50;   // Giảm từ 100 xuống 50
-  return 25;                               // Giảm từ 50 xuống 25
+  if (amount < 1000) return 100;           
+  if (amount >= 1000 && amount < 5000) return 75;     
+  if (amount >= 5000 && amount <= 15000) return 50;   
+  return 25;                               
 }
 
 function getSellMarginByAmount(amount) {
-  if (amount < 1000) return 100;          // Giảm từ 200 xuống 100 VNĐ/AED
-  if (amount >= 1000 && amount < 5000) return 75;     // Giảm từ 150 xuống 75 VNĐ/AED
-  if (amount >= 5000 && amount <= 15000) return 50;   // Giảm từ 100 xuống 50 VNĐ/AED
-  return 25;                              // Giảm từ 50 xuống 25 VNĐ/AED cho VIP
+  if (amount < 1000) return 100;          
+  if (amount >= 1000 && amount < 5000) return 75;     
+  if (amount >= 5000 && amount <= 15000) return 50;   
+  return 25;                              
 }
 
 function getFullDateString() {
@@ -134,7 +134,7 @@ async function fetchStableRates() {
 }
 
 // ==========================================
-// 1. LOGIC XỬ LÝ CHO BOT MẸ (QUẢN LÝ RIÊNG)
+// 1. LOGIC XỬ LÝ CHO BOT MẸ (GIỮ NGUYÊN HOÀN TOÀN)
 // ==========================================
 async function handleBotMe(msg) {
   if (!msg || !msg.text) return;
@@ -164,7 +164,6 @@ async function handleBotMe(msg) {
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh MUA cho Bot Mẹ (Hiển thị chi tiết đồng bộ với lệnh bán)
     const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
     if (muaMatch) {
       const amount = parseFloat(muaMatch[2]);
@@ -196,7 +195,6 @@ async function handleBotMe(msg) {
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh BÁN cho Bot Mẹ
     const banMatch = lowerText.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
     if (banMatch) {
       const amount = parseFloat(banMatch[2]);
@@ -234,7 +232,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (PHỤC VỤ KHÁCH)
+// 2. LOGIC XỬ LÝ CHO BOT CON (LÀM TRÒN TỶ GIÁ ĐẾN HÀNG CHỤC & NHÂN LÊN)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg || !msg.text) return;
@@ -258,7 +256,7 @@ async function handleBotCon(msg) {
         `• Xem bảng giá: Gõ **gia** hoặc **/gia**\n` +
         `• Mua AED: Gõ **mua + số tiền** (VD: \`mua 1000\`)\n` +
         `• Bán AED: Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n` +
-        `⚠️ **Báo giá có hiệu lực trong 10 phút. Quá thời gian vui lòng gõ lại lệnh để cập nhật giá mới.**\n` +
+        `⚠️️ **Báo giá có hiệu lực trong 10 phút. Quá thời gian vui lòng gõ lại lệnh để cập nhật giá mới.**\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
       return botCon.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
     }
@@ -267,17 +265,20 @@ async function handleBotCon(msg) {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
+      const muaThamKhao = Math.round((data.giaMuaGoc + 100) / 10) * 10;
+      const banThamKhao = Math.round((data.giaBanGoc - 100) / 10) * 10;
+
       const msgText = `📊 **BẢNG TỶ GIÁ THAM KHẢO (${getFullDateString()})**\n` +
         `👉 *Nhập lệnh: mua + số tiền HOẶC ban + số tiền*\n\n` +
-        `🟢 **TỶ GIÁ BÁN AED CHO KHÁCH:** Từ **${(data.giaMuaGoc + 100).toLocaleString('vi-VN')} VNĐ**\n` +
-        `🔴 **TỶ GIÁ THU MUA AED:** Lên đến **${(data.giaBanGoc - 100).toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `🟢 **TỶ GIÁ BÁN AED CHO KHÁCH:** Từ **${muaThamKhao.toLocaleString('vi-VN')} VNĐ**\n` +
+        `🔴 **TỶ GIÁ THU MUA AED:** Lên đến **${banThamKhao.toLocaleString('vi-VN')} VNĐ**\n\n` +
         `⚠️ **Báo giá có hiệu lực trong 10 phút. Quá thời gian vui lòng gõ lại lệnh để cập nhật giá mới.**\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
 
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh MUA cho Bot Con
+    // Xử lý lệnh MUA cho Bot Con (Làm tròn tỷ giá đến hàng chục và nhân lên)
     const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
     if (muaMatch) {
       const amount = parseFloat(muaMatch[2]);
@@ -285,9 +286,9 @@ async function handleBotCon(msg) {
       if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
       const profit = getProfitByAmount(amount);
-      const giaBao = data.giaMuaGoc + profit;
-      const totalVnd = Math.round(amount * giaBao);
-      const cleanRate = Math.round(totalVnd / amount);
+      const rawRate = data.giaMuaGoc + profit;
+      const cleanRate = Math.round(rawRate / 10) * 10; // Làm tròn đến hàng chục
+      const totalVnd = cleanRate * amount;
 
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Tỷ giá giao dịch: **1 AED = ${cleanRate.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -298,7 +299,7 @@ async function handleBotCon(msg) {
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh BÁN cho Bot Con
+    // Xử lý lệnh BÁN cho Bot Con (Làm tròn tỷ giá đến hàng chục và nhân lên)
     const banMatch = lowerText.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
     if (banMatch) {
       const amount = parseFloat(banMatch[2]);
@@ -312,9 +313,11 @@ async function handleBotCon(msg) {
       const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100);
       const feeVnd = feeUsdt * data.usdtVndPrice;
       const baseVnd = amount * giaBanCoBan;
-      const tongChi = Math.round(baseVnd - feeVnd);
+      const rawTongChi = baseVnd - feeVnd;
 
-      const cleanRate = Math.round(tongChi / amount);
+      // Tính tỷ giá quy đổi thực tế và làm tròn đến hàng chục
+      const cleanRate = Math.round((rawTongChi / amount) / 10) * 10;
+      const tongChi = cleanRate * amount;
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Tỷ giá giao dịch: **1 AED = ${cleanRate.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -340,4 +343,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công, lệnh MUA và BÁN trên Bot Mẹ đã hiển thị đồng bộ!");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công, Bot Mẹ giữ nguyên, Bot Con đã làm tròn tỷ giá và nhân chuẩn!");
