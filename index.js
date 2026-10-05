@@ -21,8 +21,6 @@ const BINANCE_FEE_PERCENT = 2.0;
 // ==========================================
 // HÀM TÍNH BIÊN ĐỘ THEO 4 MỐC MỚI
 // ==========================================
-
-// Biên độ cho KHÁCH MUA (Mua càng nhiều cộng càng ít -> giá càng rẻ)
 function getProfitByAmount(amount) {
   if (amount < 1000) return 200;           // Dưới 1.000 AED
   if (amount >= 1000 && amount < 5000) return 150;     // Từ 1.000 - 5.000 AED
@@ -30,7 +28,6 @@ function getProfitByAmount(amount) {
   return 50;                               // Trên 15.000 AED (VIP)
 }
 
-// Biên độ cho KHÁCH BÁN (Bán càng nhiều trừ càng ít -> giá thu mua càng cao)
 function getSellMarginByAmount(amount) {
   if (amount < 1000) return 200;           // Dưới 1.000 AED
   if (amount >= 1000 && amount < 5000) return 150;     // Từ 1.000 - 5.000 AED
@@ -38,7 +35,6 @@ function getSellMarginByAmount(amount) {
   return 60;                               // Trên 15.000 AED (VIP)
 }
 
-// Lấy định dạng thời gian Việt Nam chuẩn xác
 function getFullDateString() {
   const now = new Date();
   const timeStr = now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
@@ -46,7 +42,6 @@ function getFullDateString() {
   return `${timeStr} ${dateStr}`;
 }
 
-// Hàm gọi API Binance P2P an toàn
 async function getBinanceP2PData(fiat, tradeType, transAmount = null) {
   try {
     const payload = { 
@@ -75,7 +70,6 @@ async function getBinanceP2PData(fiat, tradeType, transAmount = null) {
   }
 }
 
-// Hàm lấy giá chuẩn ổn định từ mốc trung bình để chống nhảy giá loạn
 async function fetchStableRates() {
   try {
     const [vndSellList, aedBuyList, vndBuyList, aedSellList] = await Promise.all([
@@ -85,9 +79,7 @@ async function fetchStableRates() {
       getBinanceP2PData('AED', 'SELL', 1000)   
     ]);
 
-    if (!vndSellList.length || !aedBuyList.length) {
-      return null;
-    }
+    if (!vndSellList.length || !aedBuyList.length) return null;
 
     const usdtVndPrice = parseFloat(vndSellList[0].adv.price); 
     const usdtAedPrice = parseFloat(aedBuyList[0].adv.price); 
@@ -100,9 +92,7 @@ async function fetchStableRates() {
       giaBanGoc = Math.round(usdtVndBuy / usdtAedSell);
     }
 
-    if (giaBanGoc <= giaMuaGoc) {
-      giaBanGoc = giaMuaGoc + 100; 
-    }
+    if (giaBanGoc <= giaMuaGoc) giaBanGoc = giaMuaGoc + 100; 
 
     return { giaMuaGoc, giaBanGoc, usdtVndPrice, usdtAedPrice };
   } catch (err) {
@@ -112,7 +102,7 @@ async function fetchStableRates() {
 }
 
 // ==========================================
-// 1. LOGIC XỬ LÝ CHO BOT MẸ (BÁO CÁO CHI TIẾT 4 MỨC)
+// 1. LOGIC XỬ LÝ CHO BOT MẸ
 // ==========================================
 async function handleBotMe(msg) {
   if (!msg || !msg.text) return;
@@ -121,10 +111,20 @@ async function handleBotMe(msg) {
   const lowerText = text.toLowerCase();
 
   try {
+    if (lowerText === '/start') {
+      const welcomeMsg = `🤖 **CHÀO MỪNG ĐẾN VỚI HỆ THỐNG BÁO GIÁ AED (BOT MẸ)**\n\n` +
+        `📌 **HƯỚNG DẪN SỬ DỤNG:**\n` +
+        `• Xem báo cáo 4 mức: Gõ **gia** hoặc **/gia**\n` +
+        `• Tính tiền mua: Gõ **mua + số tiền** (VD: \`mua 1000\`)\n` +
+        `• Tính tiền bán: Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n` +
+        `📞 L.H WS: +84 373350255 để giao dịch`;
+      return botMe.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
+    }
+
     if (lowerText === 'gia' || lowerText === '/gia') {
       await botMe.sendMessage(chatId, "⏳ Đang quét báo cáo tỷ giá 4 mức trên Binance P2P...");
       const data = await fetchStableRates();
-      if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu Binance!");
+      if (!data) return botMe.sendMessage(chatId, "⚠️️ Lỗi kết nối dữ liệu Binance!");
 
       let msgText = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (BOT MẸ)** (${getFullDateString()})\n\n` +
         `⚡ **MỨC NHỎ (Dưới 1.000 AED):**\n` +
@@ -158,7 +158,6 @@ async function handleBotMe(msg) {
       const usdtAedNeeded = amount / data.usdtAedPrice; 
       const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100); 
       const totalUsdtNeeded = (usdtAedNeeded + feeUsdt).toFixed(2);
-
       const feeVnd = feeUsdt * data.usdtVndPrice;
       const baseVnd = amount * giaBao;
       const tongThu = Math.round(baseVnd + feeVnd); 
@@ -191,7 +190,6 @@ async function handleBotMe(msg) {
       const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100);
       const totalUsdtNeeded = (usdtAedNeeded + feeUsdt).toFixed(2);
       const feeVnd = feeUsdt * data.usdtVndPrice;
-
       const tongChi = Math.round(giaBao * amount);
       const totalLoi = sellMargin * amount;
 
@@ -212,7 +210,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (HIỂN THỊ GỌN GÀNG 2 DÒNG + CÓ DÒNG CHÚ THÍCH)
+// 2. LOGIC XỬ LÝ CHO BOT CON
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg || !msg.text) return;
@@ -221,6 +219,17 @@ async function handleBotCon(msg) {
   const lowerText = text.toLowerCase();
 
   try {
+    if (lowerText === '/start') {
+      const welcomeMsg = `🤖 **CHÀO MỪNG ĐẾN VỚI BOT BÁO GIÁ AED TỰ ĐỘNG**\n\n` +
+        `📌 **HƯỚNG DẪN SỬ DỤNG NHANH:**\n` +
+        `• Xem bảng giá cơ bản: Gõ **gia** hoặc **/gia**\n` +
+        `• Tính tiền mua AED: Gõ **mua + số tiền** (VD: \`mua 1000\`)\n` +
+        `• Tính tiền bán AED: Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n` +
+        `💡 *Lưu ý: Giao dịch số lượng lớn sẽ được tự động áp dụng ưu đãi tốt hơn khi nhập lệnh!*\n\n` +
+        `📞 L.H WS: +84 373350255 để giao dịch`;
+      return botCon.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
+    }
+
     if (lowerText === 'gia' || lowerText === '/gia') {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
@@ -286,4 +295,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Bot Con đã được thêm dòng chú thích ưu đãi thành công!");
+console.log("🚀 Bot đã cập nhật lệnh /start hướng dẫn thành công!");
