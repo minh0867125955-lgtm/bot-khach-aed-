@@ -132,7 +132,7 @@ async function fetchStableRates() {
 }
 
 // ==========================================
-// 1. LOGIC XỬ LÝ CHO BOT MẸ (GIỮ NGUYÊN ĐỂ QUẢN LÝ)
+// 1. LOGIC XỬ LÝ CHO BOT MẸ (GIÁ GỐC + ĐẦY ĐỦ CÁC MỨC)
 // ==========================================
 async function handleBotMe(msg) {
   if (!msg?.text) return;
@@ -141,7 +141,7 @@ async function handleBotMe(msg) {
 
   try {
     if (text === '/start') {
-      return botMe.sendMessage(chatId, `🤖 **HỆ THỐNG QUẢN LÝ BÁO GIÁ AED (BOT MẸ)**\n\n• Gõ **gia** để xem giá gốc sàn\n• Gõ **mua + số tiền** (VD: \`mua 1000\`)\n• Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n📞 L.H WS: +84 373350255`, { parse_mode: 'Markdown' });
+      return botMe.sendMessage(chatId, `🤖 **HỆ THỐNG QUẢN LÝ BÁO GIÁ AED (BOT MẸ)**\n\n• Gõ **gia** để xem giá gốc & đầy đủ mức\n• Gõ **mua + số tiền** (VD: \`mua 1000\`)\n• Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n📞 L.H WS: +84 373350255`, { parse_mode: 'Markdown' });
     }
 
     if (text === 'gia' || text === '/gia') {
@@ -149,9 +149,27 @@ async function handleBotMe(msg) {
       const data = await fetchStableRates();
       if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
 
-      const reportMsg = `📊 **BÁO CÁO GIÁ GỐC SÀN (BOT MẸ)** (${getFullDateString()})\n\n` +
+      const rNho = { mua: calculateBuy(500, data).giaBao, ban: calculateSell(500, data).giaBao };
+      const rTrungBinh = { mua: calculateBuy(2000, data).giaBao, ban: calculateSell(2000, data).giaBao };
+      const rLon = { mua: calculateBuy(10000, data).giaBao, ban: calculateSell(10000, data).giaBao };
+      const rVip = { mua: calculateBuy(20000, data).giaBao, ban: calculateSell(20000, data).giaBao };
+
+      const reportMsg = `📊 **BÁO CÁO GIÁ GỐC & TỶ GIÁ ĐẦY ĐỦ (BOT MẸ)** (${getFullDateString()})\n\n` +
         `🟢 Giá mua gốc: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
         `🔴 Giá bán gốc: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `📌 **CHI TIẾT CÁC MỨC GIAO DỊCH:**\n` +
+        `🔹 **MỨC NHỎ (Dưới 1.000 AED):**\n` +
+        `• Khách Mua: 1 AED = ${rNho.mua.toLocaleString('vi-VN')} VNĐ\n` +
+        `• Khách Bán: 1 AED = ${rNho.ban.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `🔹 **MỨC TRUNG BÌNH (Từ 1.000 - 5.000 AED):**\n` +
+        `• Khách Mua: 1 AED = ${rTrungBinh.mua.toLocaleString('vi-VN')} VNĐ\n` +
+        `• Khách Bán: 1 AED = ${rTrungBinh.ban.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `🔹 **MỨC LỚN (Từ 5.000 - 15.000 AED):**\n` +
+        `• Khách Mua: 1 AED = ${rLon.mua.toLocaleString('vi-VN')} VNĐ\n` +
+        `• Khách Bán: 1 AED = ${rLon.ban.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `🔹 **MỨC VIP (Trên 15.000 AED):**\n` +
+        `• Khách Mua: 1 AED = ${rVip.mua.toLocaleString('vi-VN')} VNĐ\n` +
+        `• Khách Bán: 1 AED = ${rVip.ban.toLocaleString('vi-VN')} VNĐ\n\n` +
         `📞 L.H WS: +84 373350255`;
 
       return botMe.sendMessage(chatId, reportMsg, { parse_mode: 'Markdown' });
@@ -200,7 +218,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (CHỈ HIỆN GIÁ GỐC THẤP NHẤT + CẢNH BÁO GIÁ THAM KHẢO)
+// 2. LOGIC XỬ LÝ CHO BOT CON (GIÁ GỐC + 1 MỨC DUY NHẤT)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg?.text) return;
@@ -228,13 +246,18 @@ async function handleBotCon(msg) {
       return botCon.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
     }
 
-    // Bot con lệnh /gia: Chỉ hiện giá gốc thấp nhất + Cảnh báo rõ ràng đây là giá tham khảo & hiệu lực 10 phút
+    // Bot con lệnh /gia: Hiển thị giá gốc tham khảo + 1 mức duy nhất + Cảnh báo 10 phút
     if (text === 'gia' || text === '/gia') {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Hệ thống đang bận kết nối dữ liệu! Quý khách vui lòng thử lại sau.");
 
+      const rNho = { mua: calculateBuy(500, data).giaBao, ban: calculateSell(500, data).giaBao };
+
       const reportMsg = `📊 **BÁO CÁO TỶ GIÁ THAM KHẢO** (${getFullDateString()})\n\n` +
-        `• Giá thấp nhất: **1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `• Giá gốc tham khảo: **1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `💎 **MỨC GIAO DỊCH CHUẨN:**\n` +
+        `• Khách Mua: 1 AED = ${rNho.mua.toLocaleString('vi-VN')} VNĐ\n` +
+        `• Khách Bán: 1 AED = ${rNho.ban.toLocaleString('vi-VN')} VNĐ\n\n` +
         `⚠️ **CẢNH BÁO:** Đây là mức **giá tham khảo** và chỉ có **hiệu lực trong 10 phút**.\n` +
         `📞 Liên hệ Hotline/WhatsApp: **+84 373350255** để chốt giao dịch`;
 
