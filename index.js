@@ -212,7 +212,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (HIỂN THỊ GỌN GÀNG 2 DÒNG)
+// 2. LOGIC XỬ LÝ CHO BOT CON (HIỂN THỊ GỌN GÀNG 2 DÒNG + CÓ DÒNG CHÚ THÍCH)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg || !msg.text) return;
@@ -229,6 +229,7 @@ async function handleBotCon(msg) {
         `👉 *Nhập lệnh mua/bán + số tiền (VD: mua 1000 hoặc ban 1000)*\n\n` +
         `🟢 **GIÁ MUA AED:** 1 AED = ${(data.giaMuaGoc + 200).toLocaleString('vi-VN')} VNĐ\n` +
         `🔴 **GIÁ BÁN AED:** 1 AED = ${(data.giaBanGoc - 200).toLocaleString('vi-VN')} VNĐ\n\n` +
+        `💡 *Mức giá trên là tham khảo cơ bản. Giao dịch số lượng lớn sẽ được tự động áp dụng ưu đãi tốt hơn khi nhập lệnh!*\n\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
 
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
@@ -285,4 +286,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Bot đã cập nhật thành công mức giá 4 mốc mới (<1k, 1k-5k, 5k-15k, >15k VIP)!");
+console.log("🚀 Bot Con đã được thêm dòng chú thích ưu đãi thành công!");
