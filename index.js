@@ -9,7 +9,10 @@ const path = require('path');
 const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_BOT_TOKEN || 'NHAP_TOKEN_BOT_ME_CUA_BAN';
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON || 'NHAP_TOKEN_BOT_CON_CUA_BAN';
 const ADMIN_TELEGRAM_ID = '7466244815'; 
-const FEE_PERCENT = 1.85; // Phí đệm cố định
+
+// Tách riêng mức phí cho Mua và Bán
+const BUY_FEE_PERCENT = 1.85; 
+const SELL_FEE_PERCENT = 1.8; 
 
 if (!TOKEN_ME) {
   console.error("LỖI: Chưa khai báo Telegram Token cho Bot Mẹ!");
@@ -51,15 +54,15 @@ function getFullDateString() {
   return `${now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })} ${now.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`;
 }
 
-// Hàm cốt lõi: Tính toán chi tiết lệnh MUA (Dùng chung cho cả 2 bot)
+// Hàm tính toán lệnh MUA (Dùng BUY_FEE_PERCENT = 1.85%)
 function calculateBuy(amount, data) {
   const profit = amount < 1000 ? 100 : amount < 5000 ? 75 : amount <= 15000 ? 50 : 25;
   const baseRate = Math.ceil((data.giaMuaGoc + profit) / 10) * 10;
   const baseVnd = baseRate * amount;
-  const feeVnd = baseRate * (FEE_PERCENT / 100) * amount;
+  const feeVnd = baseRate * (BUY_FEE_PERCENT / 100) * amount;
   
   const usdtAedNeeded = amount / data.usdtAedPrice;
-  const feeUsdt = usdtAedNeeded * (FEE_PERCENT / 100);
+  const feeUsdt = usdtAedNeeded * (BUY_FEE_PERCENT / 100);
   const totalUsdtNeeded = (usdtAedNeeded + feeUsdt).toFixed(2);
 
   const giaBao = Math.ceil(((baseVnd + feeVnd) / amount) / 10) * 10;
@@ -69,15 +72,15 @@ function calculateBuy(amount, data) {
   return { profit, giaBao, totalVnd, totalUsdtNeeded, feeVnd, totalLoi };
 }
 
-// Hàm cốt lõi: Tính toán chi tiết lệnh BÁN (Dùng chung cho cả 2 bot)
+// Hàm tính toán lệnh BÁN (Dùng SELL_FEE_PERCENT = 1.8%)
 function calculateSell(amount, data) {
   const sellMargin = amount < 1000 ? 100 : amount < 5000 ? 75 : amount <= 15000 ? 50 : 25;
   const giaBanCoBan = data.giaBanGoc - sellMargin;
   const baseVnd = amount * giaBanCoBan;
-  const feeVnd = giaBanCoBan * (FEE_PERCENT / 100) * amount;
+  const feeVnd = giaBanCoBan * (SELL_FEE_PERCENT / 100) * amount;
   
   const usdtAedNeeded = amount / data.usdtAedPrice;
-  const feeUsdt = usdtAedNeeded * (FEE_PERCENT / 100);
+  const feeUsdt = usdtAedNeeded * (SELL_FEE_PERCENT / 100);
   const totalUsdtNeeded = (usdtAedNeeded + feeUsdt).toFixed(2);
 
   const giaBao = Math.floor(((baseVnd - feeVnd) / amount) / 10) * 10;
@@ -159,9 +162,9 @@ async function handleBotMe(msg) {
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED (BOT MẸ)**\n\n` +
         `• Giá gốc chuẩn sàn: **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
         `• Biên độ lợi nhuận: **+${res.profit} VNĐ/AED**\n` +
-        `• Tỷ giá báo khách (đã gồm phí ${FEE_PERCENT}%): **1 AED = ${res.giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
+        `• Tỷ giá báo khách (đã gồm phí ${BUY_FEE_PERCENT}%): **1 AED = ${res.giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
         `💎 **CẦN GIAO DỊCH SÀN:** **~${res.totalUsdtNeeded} USDT**\n` +
-        `💸 **CHI PHÍ ĐỆM (${FEE_PERCENT}%):** **${Math.round(res.feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
+        `💸 **CHI PHÍ ĐỆM (${BUY_FEE_PERCENT}%):** **${Math.round(res.feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN KHÁCH TRẢ:** **${res.totalVnd.toLocaleString('vi-VN')} VNĐ**\n` +
         `💵 **LÃI THỰC NHẬN:** **${Math.round(res.totalLoi).toLocaleString('vi-VN')} VNĐ**`;
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
@@ -180,7 +183,7 @@ async function handleBotMe(msg) {
         `• Biên độ điều chỉnh: **-${res.sellMargin} VNĐ/AED**\n` +
         `• Tỷ giá báo khách: **1 AED = ${res.giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
         `💎 **CẦN GIAO DỊCH SÀN:** **~${res.totalUsdtNeeded} USDT**\n` +
-        `💸 **CHI PHÍ ĐỆM (${FEE_PERCENT}%):** **${Math.round(res.feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
+        `💸 **CHI PHÍ ĐỆM (${SELL_FEE_PERCENT}%):** **${Math.round(res.feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN TRẢ KHÁCH:** **${res.tongChi.toLocaleString('vi-VN')} VNĐ**\n` +
         `💵 **LÃI THỰC NHẬN:** **${Math.round(res.totalLoi).toLocaleString('vi-VN')} VNĐ**`;
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
@@ -265,4 +268,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công (Phiên bản tối ưu DRY & Clean Code)!");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Phí Mua = 1.85%, Phí Bán = 1.8%.");
