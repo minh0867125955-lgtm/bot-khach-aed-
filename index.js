@@ -10,9 +10,9 @@ const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_BOT_T
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON || 'NHAP_TOKEN_BOT_CON_CUA_BAN';
 const ADMIN_TELEGRAM_ID = '7466244815'; 
 
-// Mức phí cấu hình chuẩn
+// Mức phí cấu hình chuẩn (Đã hạ phí bán xuống 1.6%)
 const BUY_FEE_PERCENT = 1.85; 
-const SELL_FEE_PERCENT = 1.65; 
+const SELL_FEE_PERCENT = 1.6; 
 
 if (!TOKEN_ME) {
   console.error("LỖI: Chưa khai báo Telegram Token cho Bot Mẹ!");
@@ -77,7 +77,7 @@ function calculateSell(amount, data) {
   const sellMargin = amount < 1000 ? 100 : amount < 5000 ? 75 : amount <= 15000 ? 50 : 25;
   const giaBanCoBan = data.giaBanGoc - sellMargin;
   const baseVnd = amount * giaBanCoBan;
-  const feeVnd = giaBanCoBan * (SELL_FEE_PERCENT / 100) * amount;
+  const feeVnd = baseVnd * (SELL_FEE_PERCENT / 100);
   
   const usdtAedNeeded = amount / data.usdtAedPrice;
   const feeUsdt = usdtAedNeeded * (SELL_FEE_PERCENT / 100);
@@ -141,7 +141,7 @@ async function handleBotMe(msg) {
 
   try {
     if (text === '/start') {
-      return botMe.sendMessage(chatId, `🤖 **HỆ THỐNG QUẢN LÝ BÁO GIÁ AED (BOT MẸ)**\n\n• Gõ **gia** để xem giá gốc & đầy đủ mức\n• Gõ **mua + số tiền** (VD: \`mua 1000\`)\n• Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n📞 L.H WS: +84 373350255`, { parse_mode: 'Markdown' });
+      return botMe.sendMessage(chatId, `🤖 **HỆ THỐNG QUẢN LÝ BÁO GIÁ AED (BOT MẸ)**\n\n• Gõ **gia** để xem giá gốc & đầy đủ mức\n• Gõ **mua + số tiền** (VD: \`mua 1000\`)\n• Gõ **bán + số tiền** (VD: \`bán 1000\`)\n\n📞 L.H WS: +84 373350255`, { parse_mode: 'Markdown' });
     }
 
     if (text === 'gia' || text === '/gia') {
@@ -180,7 +180,7 @@ async function handleBotMe(msg) {
       const amount = parseFloat(muaMatch[2]);
       await botMe.sendMessage(chatId, `⏳ Đang tính toán cho ${amount.toLocaleString('vi-VN')} AED...`);
       const data = await fetchStableRates();
-      if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
+      if (!data) return botMe.sendMessage(chatId, "⚠️️ Lỗi kết nối dữ liệu từ sàn!");
 
       const res = calculateBuy(amount, data);
       const msgText = `🟢 **KHÁCH MUA ${amount.toLocaleString('vi-VN')} AED (BOT MẸ)**\n\n` +
@@ -194,7 +194,7 @@ async function handleBotMe(msg) {
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    const banMatch = text.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
+    const banMatch = text.match(/^(\/)?(?:ban|bán)\s+(\d+(\.\d+)?)$/);
     if (banMatch) {
       const amount = parseFloat(banMatch[2]);
       await botMe.sendMessage(chatId, `⏳ Đang tính toán cho ${amount.toLocaleString('vi-VN')} AED...`);
@@ -240,13 +240,12 @@ async function handleBotCon(msg) {
         `📌 **HƯỚNG DẪN SỬ DỤNG:**\n` +
         `• Xem tỷ giá nhanh: Gõ **gia** hoặc \`/gia\`\n` +
         `• Tính tiền Mua: Gõ \`mua [số lượng]\` (VD: \`mua 1000\`)\n` +
-        `• Tính tiền Bán: Gõ \`ban [số lượng]\` (VD: \`ban 1000\`)\n\n` +
+        `• Tính tiền Bán: Gõ \`bán [số lượng]\` (VD: \`bán 1000\`)\n\n` +
         `⚠️ **LƯU Ý:** Báo giá có hiệu lực trong **10 phút**.\n` +
         `📞 **Hỗ trợ giao dịch WhatsApp:** +84 373350255`;
       return botCon.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
     }
 
-    // Bot con lệnh /gia: Tính ở mức Trung Bình (2000 AED) để giá đẹp, hấp dẫn khách
     if (text === 'gia' || text === '/gia') {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Hệ thống đang bận kết nối dữ liệu! Quý khách vui lòng thử lại sau.");
@@ -278,7 +277,7 @@ async function handleBotCon(msg) {
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    const banMatch = text.match(/^(\/)?ban\s+(\d+(\.\d+)?)$/);
+    const banMatch = text.match(/^(\/)?(?:ban|bán)\s+(\d+(\.\d+)?)$/);
     if (banMatch) {
       const amount = parseFloat(banMatch[2]);
       const data = await fetchStableRates();
