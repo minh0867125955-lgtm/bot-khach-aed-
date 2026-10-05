@@ -222,19 +222,22 @@ async function handleBotMe(msg) {
       const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100);
       const totalUsdtNeeded = (usdtAedNeeded + feeUsdt).toFixed(2);
       const feeVnd = feeUsdt * data.usdtVndPrice;
-      const tongChi = Math.round(giaBao * amount);
       
-      // ĐÃ SỬA: Lãi thực nhận trừ đi chi phí đệm 2% trên sàn
-      const totalLoi = Math.round((sellMargin * amount) - feeVnd);
+      const baseVnd = amount * giaBao;
+      // Khách chịu phí đệm -> Trừ trực tiếp feeVnd vào tổng tiền trả khách
+      const tongChi = Math.round(baseVnd - feeVnd);
+      
+      // Lãi thực nhận trọn vẹn theo biên độ (không bị trừ phí)
+      const totalLoi = sellMargin * amount;
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Giá gốc chuẩn sàn: **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n` +
         `• Biên độ điều chỉnh: **-${sellMargin} VNĐ/AED**\n` +
         `• Tỷ giá báo khách: **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
         `💎 **CẦN GIAO DỊCH TRÊN SÀN:** **~${totalUsdtNeeded} USDT** (Đã gồm đệm 2%)\n` +
-        `💸 **CHI PHÍ ĐỆM (2%):** **${Math.round(feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
+        `💸 **CHI PHÍ ĐỆM KHÁCH CHỊU (2%):** **${Math.round(feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN TRẢ KHÁCH:** **${tongChi.toLocaleString('vi-VN')} VNĐ**\n` +
-        `💵 **LÃI THỰC NHẬN:** **${totalLoi > 0 ? totalLoi.toLocaleString('vi-VN') : 0} VNĐ**`;
+        `💵 **LÃI THỰC NHẬN:** **${Math.round(totalLoi).toLocaleString('vi-VN')} VNĐ**`;
 
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
@@ -317,7 +320,12 @@ async function handleBotCon(msg) {
 
       const sellMargin = getSellMarginByAmount(amount);
       const giaBao = data.giaBanGoc - sellMargin;
-      const tongChi = Math.round(giaBao * amount);
+      
+      const usdtAedNeeded = amount / data.usdtAedPrice;
+      const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100);
+      const feeVnd = feeUsdt * data.usdtVndPrice;
+      const baseVnd = amount * giaBao;
+      const tongChi = Math.round(baseVnd - feeVnd);
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Tỷ giá áp dụng: **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
