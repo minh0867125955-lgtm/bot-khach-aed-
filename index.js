@@ -51,21 +51,20 @@ function saveNewUser(chatId) {
 const BINANCE_FEE_PERCENT = 2.0; 
 
 // ==========================================
-// HÀM TÍNH BIÊN ĐỘ LÃI SIÊU MỎNG (CẠNH TRANH)
+// HÀM TÍNH BIÊN ĐỘ LÃI ĐÃ GIẢM 50%
 // ==========================================
 function getProfitByAmount(amount) {
-  if (amount < 1000) return 200;           
-  if (amount >= 1000 && amount < 5000) return 150;     
-  if (amount >= 5000 && amount <= 15000) return 100;   
-  return 50;                               
+  if (amount < 1000) return 100;           // Đã giảm từ 200 xuống 100
+  if (amount >= 1000 && amount < 5000) return 75;     // Đã giảm từ 150 xuống 75
+  if (amount >= 5000 && amount <= 15000) return 50;   // Đã giảm từ 100 xuống 50
+  return 25;                               // Đã giảm từ 50 xuống 25
 }
 
-// Biên độ lãi siêu mỏng khi khách BÁN AED (giúp tỷ giá cao, hút khách, không sợ lỗ nhờ đệm 2%)
 function getSellMarginByAmount(amount) {
-  if (amount < 1000) return 20;           // Lãi 20 VNĐ/AED cho đơn nhỏ
-  if (amount >= 1000 && amount < 5000) return 15;     // Lãi 15 VNĐ/AED
-  if (amount >= 5000 && amount <= 15000) return 10;   // Lãi 10 VNĐ/AED
-  return 5;                               // Lãi 5 VNĐ/AED cho đơn VIP
+  if (amount < 1000) return 10;           // Đã giảm từ 20 xuống 10 VNĐ/AED
+  if (amount >= 1000 && amount < 5000) return 8;      // Đã giảm từ 15 xuống 8 VNĐ/AED
+  if (amount >= 5000 && amount <= 15000) return 5;    // Đã giảm từ 10 xuống 5 VNĐ/AED
+  return 2;                               // Đã giảm từ 5 xuống 2 VNĐ/AED cho VIP
 }
 
 function getFullDateString() {
@@ -236,7 +235,7 @@ async function handleBotCon(msg) {
 
       const msgText = `📊 **BẢNG TỶ GIÁ THAM KHẢO (${getFullDateString()})**\n` +
         `👉 *Nhập lệnh: ban + số tiền (VD: ban 1000)*\n\n` +
-        `🔴 **TỶ GIÁ THU MUA AED:** Lên đến **${(data.giaBanGoc - 20).toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `🔴 **TỶ GIÁ THU MUA AED:** Lên đến **${(data.giaBanGoc - 10).toLocaleString('vi-VN')} VNĐ**\n\n` +
         `⚠️ **Báo giá có hiệu lực trong 10 phút. Quá thời gian vui lòng gõ lại lệnh để cập nhật giá mới.**\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
 
@@ -285,4 +284,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công với cảnh báo hiệu lực 10 phút!");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công với mức lời đã giảm 50% và cảnh báo 10 phút!");
