@@ -10,9 +10,9 @@ const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_BOT_T
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON || 'NHAP_TOKEN_BOT_CON_CUA_BAN';
 const ADMIN_TELEGRAM_ID = '7466244815'; 
 
-// Tách riêng mức phí cho Mua và Bán
+// Mức phí cấu hình cho Mua và Bán
 const BUY_FEE_PERCENT = 1.85; 
-const SELL_FEE_PERCENT = 1.8; 
+const SELL_FEE_PERCENT = 1.65; 
 
 if (!TOKEN_ME) {
   console.error("LỖI: Chưa khai báo Telegram Token cho Bot Mẹ!");
@@ -72,7 +72,7 @@ function calculateBuy(amount, data) {
   return { profit, giaBao, totalVnd, totalUsdtNeeded, feeVnd, totalLoi };
 }
 
-// Hàm tính toán lệnh BÁN (Dùng SELL_FEE_PERCENT = 1.8%)
+// Hàm tính toán lệnh BÁN (Dùng SELL_FEE_PERCENT = 1.65%)
 function calculateSell(amount, data) {
   const sellMargin = amount < 1000 ? 100 : amount < 5000 ? 75 : amount <= 15000 ? 50 : 25;
   const giaBanCoBan = data.giaBanGoc - sellMargin;
@@ -268,4 +268,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Phí Mua = 1.85%, Phí Bán = 1.8%.");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Phí Mua = 1.85%, Phí Bán = 1.65%.");
