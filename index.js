@@ -242,23 +242,23 @@ async function handleBotCon(msg) {
         `• Tính tiền Mua: Gõ \`mua [số lượng]\` (VD: \`mua 1000\`)\n` +
         `• Tính tiền Bán: Gõ \`ban [số lượng]\` (VD: \`ban 1000\`)\n\n` +
         `⚠️ **LƯU Ý:** Báo giá có hiệu lực trong **10 phút**.\n` +
-        `📞 **Hỗ trợ giao dịch:** +84 373350255`;
+        `📞 **Hỗ trợ giao dịch WhatsApp:** +84 373350255`;
       return botCon.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
     }
 
-    // Bot con lệnh /gia: Gọn gàng, bắt mắt, tập trung tối đa vào giá Mua/Bán để thu hút khách chốt đơn
+    // Bot con lệnh /gia: Tính ở mức Trung Bình (2000 AED) để giá đẹp, hấp dẫn khách
     if (text === 'gia' || text === '/gia') {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Hệ thống đang bận kết nối dữ liệu! Quý khách vui lòng thử lại sau.");
 
-      const rNho = { mua: calculateBuy(500, data).giaBao, ban: calculateSell(500, data).giaBao };
+      const rTrungBinh = { mua: calculateBuy(2000, data).giaBao, ban: calculateSell(2000, data).giaBao };
 
       const reportMsg = `🔥 **TỶ GIÁ QUY ĐỔI AED TỐT NHẤT HÔM NAY** (${getFullDateString()})\n\n` +
-        `🟢 **KHÁCH MUA (Nhận AED):**\n👉 **1 AED = ${rNho.mua.toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `🔴 **KHÁCH BÁN (Bán AED):**\n👉 **1 AED = ${rNho.ban.toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `🟢 **KHÁCH MUA (Nhận AED):**\n👉 **1 AED = ${rTrungBinh.mua.toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `🔴 **KHÁCH BÁN (Bán AED):**\n👉 **1 AED = ${rTrungBinh.ban.toLocaleString('vi-VN')} VNĐ**\n\n` +
         `──────────────────\n` +
         `⚠️ *Mức giá tham khảo, có hiệu lực trong 10 phút.*\n` +
-        `📞 **Chốt giao dịch ngay qua Hotline/WhatsApp:** +84 373350255`;
+        `📞 **Chốt giao dịch ngay qua WhatsApp:** +84 373350255`;
 
       return botCon.sendMessage(chatId, reportMsg, { parse_mode: 'Markdown' });
     }
@@ -274,7 +274,7 @@ async function handleBotCon(msg) {
         `• Tỷ giá áp dụng: **1 AED = ${res.giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN KHÁCH TRẢ:** **${res.totalVnd.toLocaleString('vi-VN')} VNĐ**\n\n` +
         `⚠️ **LƯU Ý:** Đây là **giá tham khảo** và có **hiệu lực trong 10 phút**. Giao dịch liên hệ ngay:\n` +
-        `📞 Hotline/WhatsApp: **+84 373350255**`;
+        `📞 WhatsApp: **+84 373350255**`;
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
@@ -289,7 +289,7 @@ async function handleBotCon(msg) {
         `• Tỷ giá áp dụng: **1 AED = ${res.giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN NHẬN VỀ:** **${res.tongChi.toLocaleString('vi-VN')} VNĐ**\n\n` +
         `⚠️ **LƯU Ý:** Đây là **giá tham khảo** và có **hiệu lực trong 10 phút**. Giao dịch liên hệ ngay:\n` +
-        `📞 Hotline/WhatsApp: **+84 373350255**`;
+        `📞 WhatsApp: **+84 373350255**`;
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
   } catch (err) {
