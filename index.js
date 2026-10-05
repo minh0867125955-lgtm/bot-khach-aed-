@@ -164,7 +164,7 @@ async function handleBotMe(msg) {
       return botMe.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
 
-    // Xử lý lệnh MUA cho Bot Mẹ
+    // Xử lý lệnh MUA cho Bot Mẹ (Hiển thị chi tiết đồng bộ với lệnh bán)
     const muaMatch = lowerText.match(/^(\/)?mua\s+(\d+(\.\d+)?)$/);
     if (muaMatch) {
       const amount = parseFloat(muaMatch[2]);
@@ -175,6 +175,12 @@ async function handleBotMe(msg) {
 
       const profit = getProfitByAmount(amount);
       const giaBao = data.giaMuaGoc + profit;
+      
+      const usdtAedNeeded = amount / data.usdtAedPrice;
+      const feeUsdt = usdtAedNeeded * (BINANCE_FEE_PERCENT / 100);
+      const totalUsdtNeeded = (usdtAedNeeded + feeUsdt).toFixed(2);
+      const feeVnd = feeUsdt * data.usdtVndPrice;
+      
       const totalVnd = Math.round(amount * giaBao);
       const totalLoi = profit * amount;
 
@@ -182,6 +188,8 @@ async function handleBotMe(msg) {
         `• Giá gốc chuẩn sàn: **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
         `• Biên độ lợi nhuận: **+${profit} VNĐ/AED**\n` +
         `• Tỷ giá báo khách: **1 AED = ${giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
+        `💎 **CẦN GIAO DỊCH SÀN:** **~${totalUsdtNeeded} USDT** (Đã gồm đệm 2%)\n` +
+        `💸 **CHI PHÍ ĐỆM (2%):** **${Math.round(feeVnd).toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN KHÁCH TRẢ:** **${totalVnd.toLocaleString('vi-VN')} VNĐ**\n` +
         `💵 **LÃI THỰC NHẬN:** **${Math.round(totalLoi).toLocaleString('vi-VN')} VNĐ**`;
 
@@ -263,7 +271,7 @@ async function handleBotCon(msg) {
         `👉 *Nhập lệnh: mua + số tiền HOẶC ban + số tiền*\n\n` +
         `🟢 **TỶ GIÁ BÁN AED CHO KHÁCH:** Từ **${(data.giaMuaGoc + 100).toLocaleString('vi-VN')} VNĐ**\n` +
         `🔴 **TỶ GIÁ THU MUA AED:** Lên đến **${(data.giaBanGoc - 100).toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `⚠️️ **Báo giá có hiệu lực trong 10 phút. Quá thời gian vui lòng gõ lại lệnh để cập nhật giá mới.**\n` +
+        `⚠️ **Báo giá có hiệu lực trong 10 phút. Quá thời gian vui lòng gõ lại lệnh để cập nhật giá mới.**\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
 
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
@@ -306,7 +314,6 @@ async function handleBotCon(msg) {
       const baseVnd = amount * giaBanCoBan;
       const tongChi = Math.round(baseVnd - feeVnd);
 
-      // Tỷ giá trọn gói (Clean Rate) giúp khách tự nhân khớp 100% không bị lệch
       const cleanRate = Math.round(tongChi / amount);
 
       const msgText = `🔴 **KHÁCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
@@ -333,4 +340,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công với đầy đủ lệnh MUA và BÁN!");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công, lệnh MUA và BÁN trên Bot Mẹ đã hiển thị đồng bộ!");
