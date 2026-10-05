@@ -132,7 +132,7 @@ async function fetchStableRates() {
 }
 
 // ==========================================
-// 1. LOGIC XỬ LÝ CHO BOT MẸ (QUẢN LÝ NỘI BỘ)
+// 1. LOGIC XỬ LÝ CHO BOT MẸ (GIỮ NGUYÊN ĐỂ QUẢN LÝ)
 // ==========================================
 async function handleBotMe(msg) {
   if (!msg?.text) return;
@@ -141,38 +141,18 @@ async function handleBotMe(msg) {
 
   try {
     if (text === '/start') {
-      return botMe.sendMessage(chatId, `🤖 **HỆ THỐNG QUẢN LÝ BÁO GIÁ AED (BOT MẸ)**\n\n• Gõ **gia** để xem bảng tỷ giá các mức\n• Gõ **mua + số tiền** (VD: \`mua 1000\`)\n• Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n📞 L.H WS: +84 373350255`, { parse_mode: 'Markdown' });
+      return botMe.sendMessage(chatId, `🤖 **HỆ THỐNG QUẢN LÝ BÁO GIÁ AED (BOT MẸ)**\n\n• Gõ **gia** để xem giá gốc sàn\n• Gõ **mua + số tiền** (VD: \`mua 1000\`)\n• Gõ **ban + số tiền** (VD: \`ban 1000\`)\n\n📞 L.H WS: +84 373350255`, { parse_mode: 'Markdown' });
     }
 
     if (text === 'gia' || text === '/gia') {
-      await botMe.sendMessage(chatId, "⏳ Đang quét báo cáo tỷ giá 4 mức trên Binance P2P...");
+      await botMe.sendMessage(chatId, "⏳ Đang quét giá gốc sàn trên Binance P2P...");
       const data = await fetchStableRates();
       if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
 
-      const r1Buy = calculateBuy(500, data).giaBao;
-      const r1Sell = calculateSell(500, data).giaBao;
-      const r2Buy = calculateBuy(2000, data).giaBao;
-      const r2Sell = calculateSell(2000, data).giaBao;
-      const r3Buy = calculateBuy(10000, data).giaBao;
-      const r3Sell = calculateSell(10000, data).giaBao;
-      const r4Buy = calculateBuy(20000, data).giaBao;
-      const r4Sell = calculateSell(20000, data).giaBao;
-
-      const reportMsg = `📊 **BÁO CÁO TỶ GIÁ BINANCE P2P (BOT MẸ)** (${getFullDateString()})\n\n` +
-        `⚡ **MỨC NHỎ (Dưới 1.000 AED):**\n` +
-        `🟢 Bán cho khách: 1 AED = ${r1Buy.toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Thu mua từ khách: 1 AED = ${r1Sell.toLocaleString('vi-VN')} VNĐ\n\n` +
-        `⚡ **MỨC TRUNG BÌNH (Từ 1.000 - 5.000 AED):**\n` +
-        `🟢 Bán cho khách: 1 AED = ${r2Buy.toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Thu mua từ khách: 1 AED = ${r2Sell.toLocaleString('vi-VN')} VNĐ\n\n` +
-        `⚡ **MỨC LỚN (Từ 5.000 - 15.000 AED):**\n` +
-        `🟢 Bán cho khách: 1 AED = ${r3Buy.toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Thu mua từ khách: 1 AED = ${r3Sell.toLocaleString('vi-VN')} VNĐ\n\n` +
-        `⚡ **MỨC VIP (Trên 15.000 AED):**\n` +
-        `🟢 Bán cho khách: 1 AED = ${r4Buy.toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Thu mua từ khách: 1 AED = ${r4Sell.toLocaleString('vi-VN')} VNĐ\n\n` +
-        `⚠️ **Báo giá có hiệu lực trong 10 phút.**\n` +
-        `📞 L.H WS: +84 373350255 để giao dịch`;
+      const reportMsg = `📊 **BÁO CÁO GIÁ GỐC SÀN (BOT MẸ)** (${getFullDateString()})\n\n` +
+        `🟢 Giá mua gốc: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 Giá bán gốc: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
+        `📞 L.H WS: +84 373350255`;
 
       return botMe.sendMessage(chatId, reportMsg, { parse_mode: 'Markdown' });
     }
@@ -220,7 +200,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (CHUYÊN NGHIỆP, DÀNH CHO KHÁCH HÀNG)
+// 2. LOGIC XỬ LÝ CHO BOT CON (CHỈ HIỆN GIÁ GỐC THẤP NHẤT + CẢNH BÁO GIÁ THAM KHẢO)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg?.text) return;
@@ -236,49 +216,26 @@ async function handleBotCon(msg) {
       return botCon.sendMessage(chatId, `📈 **THỐNG KÊ BOT CON:**\n👥 Tổng số người đã tương tác: **${getStoredUsers().length}** người.`);
     }
 
-    // Lệnh /start cực kỳ chuyên nghiệp: Lời chào, cảm ơn và hướng dẫn chi tiết
     if (text === '/start') {
       const welcomeMsg = `🌟 **CHÀO MỪNG QUÝ KHÁCH ĐẾN VỚI HỆ THỐNG QUY ĐỔI AED TỰ ĐỘNG** 🌟\n\n` +
-        `Cảm ơn Quý khách đã tin tưởng và lựa chọn dịch vụ của chúng tôi! 🙏\n\n` +
-        `📌 **HƯỚNG DẪN SỬ DỤNG NHANH:**\n` +
-        `• Xem bảng tỷ giá: Gõ **gia** hoặc \`/gia\`\n` +
-        `• Tính tiền Mua AED: Gõ \`mua [số lượng]\` (Ví dụ: \`mua 1000\`)\n` +
-        `• Tính tiền Bán AED: Gõ \`ban [số lượng]\` (Ví dụ: \`ban 1000\`)\n\n` +
-        `⚠️ **LƯU Ý QUAN TRỌNG:**\n` +
-        `• Mỗi mức báo giá chỉ có **hiệu lực trong vòng 10 phút**.\n` +
-        `• Quá thời gian trên, vui lòng gõ lại lệnh để cập nhật tỷ giá thị trường mới nhất.\n\n` +
-        `📞 **Hỗ trợ trực tiếp / Chốt giao dịch:** +84 373350255`;
+        `Cảm ơn Quý khách đã tin tưởng và lựa chọn dịch vụ! 🙏\n\n` +
+        `📌 **HƯỚNG DẪN SỬ DỤNG:**\n` +
+        `• Xem giá tham khảo: Gõ **gia** hoặc \`/gia\`\n` +
+        `• Tính tiền Mua: Gõ \`mua [số lượng]\` (VD: \`mua 1000\`)\n` +
+        `• Tính tiền Bán: Gõ \`ban [số lượng]\` (VD: \`ban 1000\`)\n\n` +
+        `⚠️ **LƯU Ý:** Đây là mức **giá tham khảo** và chỉ có hiệu lực trong **10 phút**.\n` +
+        `📞 **Hỗ trợ giao dịch:** +84 373350255`;
       return botCon.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
     }
 
-    // Lệnh xem giá chuyên nghiệp: Hiện giá tham khảo các mức + Cảnh báo hiệu lực
+    // Bot con lệnh /gia: Chỉ hiện giá gốc thấp nhất + Cảnh báo rõ ràng đây là giá tham khảo & hiệu lực 10 phút
     if (text === 'gia' || text === '/gia') {
       const data = await fetchStableRates();
-      if (!data) return botCon.sendMessage(chatId, "⚠️ Hệ thống đang bận kết nối dữ liệu! Quý khách vui lòng thử lại sau ít phút.");
+      if (!data) return botCon.sendMessage(chatId, "⚠️ Hệ thống đang bận kết nối dữ liệu! Quý khách vui lòng thử lại sau.");
 
-      const r1Buy = calculateBuy(500, data).giaBao;
-      const r1Sell = calculateSell(500, data).giaBao;
-      const r2Buy = calculateBuy(2000, data).giaBao;
-      const r2Sell = calculateSell(2000, data).giaBao;
-      const r3Buy = calculateBuy(10000, data).giaBao;
-      const r3Sell = calculateSell(10000, data).giaBao;
-      const r4Buy = calculateBuy(20000, data).giaBao;
-      const r4Sell = calculateSell(20000, data).giaBao;
-
-      const reportMsg = `📊 **BẢNG TỶ GIÁ THAM KHẢO** (${getFullDateString()})\n\n` +
-        `🔹 **MỨC NHỎ (Dưới 1.000 AED):**\n` +
-        `  • Khách Mua: **1 AED = ${r1Buy.toLocaleString('vi-VN')} VNĐ**\n` +
-        `  • Khách Bán: **1 AED = ${r1Sell.toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `🔹 **MỨC TRUNG BÌNH (Từ 1.000 - 5.000 AED):**\n` +
-        `  • Khách Mua: **1 AED = ${r2Buy.toLocaleString('vi-VN')} VNĐ**\n` +
-        `  • Khách Bán: **1 AED = ${r2Sell.toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `🔹 **MỨC LỚN (Từ 5.000 - 15.000 AED):**\n` +
-        `  • Khách Mua: **1 AED = ${r3Buy.toLocaleString('vi-VN')} VNĐ**\n` +
-        `  • Khách Bán: **1 AED = ${r3Sell.toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `🔹 **MỨC VIP (Trên 15.000 AED):**\n` +
-        `  • Khách Mua: **1 AED = ${r4Buy.toLocaleString('vi-VN')} VNĐ**\n` +
-        `  • Khách Bán: **1 AED = ${r4Sell.toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `⚠️ **CẢNH BÁO:** Báo giá này chỉ có **hiệu lực trong 10 phút**.\n` +
+      const reportMsg = `📊 **BÁO CÁO TỶ GIÁ THAM KHẢO** (${getFullDateString()})\n\n` +
+        `• Giá thấp nhất: **1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `⚠️ **CẢNH BÁO:** Đây là mức **giá tham khảo** và chỉ có **hiệu lực trong 10 phút**.\n` +
         `📞 Liên hệ Hotline/WhatsApp: **+84 373350255** để chốt giao dịch`;
 
       return botCon.sendMessage(chatId, reportMsg, { parse_mode: 'Markdown' });
@@ -294,7 +251,7 @@ async function handleBotCon(msg) {
       const msgText = `🟢 **XÁC NHẬN GIAO DỊCH MUA ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Tỷ giá áp dụng: **1 AED = ${res.giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN KHÁCH TRẢ:** **${res.totalVnd.toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `⚠️ **LƯU Ý:** Báo giá có **hiệu lực trong 10 phút**. Giao dịch vui lòng liên hệ ngay:\n` +
+        `⚠️ **LƯU Ý:** Đây là **giá tham khảo** và có **hiệu lực trong 10 phút**. Giao dịch liên hệ ngay:\n` +
         `📞 Hotline/WhatsApp: **+84 373350255**`;
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
@@ -309,7 +266,7 @@ async function handleBotCon(msg) {
       const msgText = `🔴 **XÁC NHẬN GIAO DỊCH BÁN ${amount.toLocaleString('vi-VN')} AED**\n\n` +
         `• Tỷ giá áp dụng: **1 AED = ${res.giaBao.toLocaleString('vi-VN')} VNĐ**\n` +
         `👉 **TỔNG TIỀN NHẬN VỀ:** **${res.tongChi.toLocaleString('vi-VN')} VNĐ**\n\n` +
-        `⚠️ **LƯU Ý:** Báo giá có **hiệu lực trong 10 phút**. Giao dịch vui lòng liên hệ ngay:\n` +
+        `⚠️ **LƯU Ý:** Đây là **giá tham khảo** và có **hiệu lực trong 10 phút**. Giao dịch liên hệ ngay:\n` +
         `📞 Hotline/WhatsApp: **+84 373350255**`;
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
     }
@@ -329,4 +286,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công! Phí Mua = 1.85%, Phí Bán = 1.65%.");
+console.log("🚀 Hệ thống 2 Bot đã khởi chạy thành công!");
