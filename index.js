@@ -9,8 +9,8 @@ const path = require('path');
 const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_BOT_TOKEN || 'NHAP_TOKEN_BOT_ME_CUA_BAN';
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON || 'NHAP_TOKEN_BOT_CON_CUA_BAN';
 
-// 🛑 ĐIỀN TELEGRAM ID CỦA BẠN VÀO ĐÂY ĐỂ ĐƯỢC QUYỀN XEM THỐNG KÊ (Lấy từ @userinfobot)
-const ADMIN_TELEGRAM_ID = 'NHAP_TELEGRAM_ID_CUA_BAN'; 
+// Đã điền chính xác Telegram ID của bạn làm Admin
+const ADMIN_TELEGRAM_ID = '7466244815'; 
 
 if (!TOKEN_ME) {
   console.error("LỖI: Chưa khai báo Telegram Token cho Bot Mẹ!");
@@ -255,7 +255,7 @@ async function handleBotCon(msg) {
   saveNewUser(chatId);
 
   try {
-    // 🔒 LỆNH THỐNG KÊ (Bảo mật tuyệt đối, khách gõ bot lờ đi)
+    // 🔒 LỆNH THỐNG KÊ (Đã gán ID của bạn làm Admin)
     if (lowerText === '/thongke') {
       if (userId !== ADMIN_TELEGRAM_ID) return; 
       const totalUsers = getStoredUsers().length;
