@@ -209,7 +209,7 @@ async function handleBotMe(msg) {
 }
 
 // ==========================================
-// 2. LOGIC XỬ LÝ CHO BOT CON (ẨN THÔNG SỐ NỘI BỘ, GỌN GÀNG CHO KHÁCH)
+// 2. LOGIC XỬ LÝ CHO BOT CON (ĐÃ ĐỒNG BỘ HIỂN THỊ ĐA KHUNG MỨC KHI GÕ GIA)
 // ==========================================
 async function handleBotCon(msg) {
   if (!botCon || !msg || !msg.text) return;
@@ -222,10 +222,17 @@ async function handleBotCon(msg) {
       const data = await fetchStableRates();
       if (!data) return botCon.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
 
-      const msgText = `📊 **BÁO CÁO TỶ GIÁ (${getFullDateString()})**\n` +
+      const msgText = `📊 **BÁO CÁO TỶ GIÁ AED/VND** (${getFullDateString()})\n` +
         `👉 *Nhập lệnh mua/bán + số tiền (VD: mua 1000 hoặc ban 1000)*\n\n` +
-        `🟢 **GIÁ MUA AED:** 1 AED = ${(data.giaMuaGoc + 150).toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 **GIÁ BÁN AED:** 1 AED = ${(data.giaBanGoc - 150).toLocaleString('vi-VN')} VNĐ\n\n` +
+        `⚡ **MỨC NHỎ (Dưới 500 AED):**\n` +
+        `🟢 Mua AED: 1 AED = ${(data.giaMuaGoc + 200).toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 Bán AED: 1 AED = ${(data.giaBanGoc - 250).toLocaleString('vi-VN')} VNĐ\n\n` +
+        `⚡ **MỨC TRUNG BÌNH (Từ 500 - 5.000 AED):**\n` +
+        `🟢 Mua AED: 1 AED = ${(data.giaMuaGoc + 150).toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 Bán AED: 1 AED = ${(data.giaBanGoc - 150).toLocaleString('vi-VN')} VNĐ\n\n` +
+        `⚡ **MỨC LỚN (Từ 5.000 - 10.000 AED):**\n` +
+        `🟢 Mua AED: 1 AED = ${(data.giaMuaGoc + 100).toLocaleString('vi-VN')} VNĐ\n` +
+        `🔴 Bán AED: 1 AED = ${(data.giaBanGoc - 100).toLocaleString('vi-VN')} VNĐ\n\n` +
         `📞 L.H WS: +84 373350255 để giao dịch`;
 
       return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
@@ -282,4 +289,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống Bot Telegram đổi tiền AED/VND đã sẵn sàng hoạt động!");
+console.log("🚀 Hệ thống Bot Telegram đổi tiền AED/VND đã được đồng bộ hoàn hảo!");
