@@ -9,7 +9,7 @@ const path = require('path');
 const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_BOT_TOKEN || 'NHAP_TOKEN_BOT_ME_CUA_BAN';
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON || 'NHAP_TOKEN_BOT_CON_CUA_BAN';
 const ADMIN_TELEGRAM_ID = '7466244815'; 
-const WHATSAPP_PHONE = '84373350255'; 
+const WHATSAPP_PHONE = '84373350255'; // Bỏ số 0 ở đầu, thêm mã quốc gia 84
 
 if (!TOKEN_ME) {
   console.error("LỖI: Chưa khai báo Telegram Token cho Bot Mẹ!");
@@ -26,7 +26,7 @@ const TX_FILE = path.join(__dirname, 'transactions.json');
 // ==========================================
 let cachedData = null;
 let lastFetchTime = 0;
-const CACHE_DURATION = 30 * 1000;
+const CACHE_DURATION = 30 * 1000; // Cache trong 30 giây
 
 // ==========================================
 // CÁC HÀM TIỆN ÍCH & QUẢN LÝ DỮ LIỆU
@@ -242,7 +242,7 @@ async function handleBotMe(msg) {
   }
 }
 
-// Xử lý sự kiện bấm nút trên Bot Mẹ (Duyệt / Hủy đơn)
+// Xử lý sự kiện bấm nút Duyệt / Hủy trên Bot Mẹ
 if (botMe) {
   botMe.on('callback_query', async (query) => {
     const dataParts = query.data.split('_');
@@ -344,7 +344,6 @@ async function handleBotCon(msg) {
         `👉 **TỔNG TIỀN TRẢ:** **${res.totalVnd.toLocaleString('vi-VN')} VNĐ**\n\n` +
         `📞 **Bấm nút bên dưới để chuyển sang WhatsApp chốt đơn:**`;
 
-      // Truyền thêm usdtAedNeeded vào chuỗi callback_data (vị trí thứ 6)
       const buyKeyboard = {
         reply_markup: {
           inline_keyboard: [
@@ -370,7 +369,6 @@ async function handleBotCon(msg) {
         `👉 **TỔNG TIỀN NHẬN VỀ:** **${res.tongChi.toLocaleString('vi-VN')} VNĐ**\n\n` +
         `📞 **Bấm nút bên dưới để chuyển sang WhatsApp chốt đơn:**`;
 
-      // Truyền thêm usdtAedNeeded vào chuỗi callback_data (vị trí thứ 6)
       const sellKeyboard = {
         reply_markup: {
           inline_keyboard: [
@@ -385,7 +383,7 @@ async function handleBotCon(msg) {
   }
 }
 
-// Xử lý sự kiện khách bấm nút "Chốt Đơn Ngay" ở Bot Con
+// Xử lý sự kiện khách bấm nút tương tác ở Bot Con
 if (botCon) {
   botCon.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
@@ -403,7 +401,7 @@ if (botCon) {
       return botCon.answerCallbackQuery(query.id);
     }
 
-    // Khi khách bấm nút CHỐT MUA hoặc CHỐT BÁN
+    // Khi khách thực sự bấm nút CHỐT MUA hoặc CHỐT BÁN
     if (data.startsWith('CHOT_MUA_') || data.startsWith('CHOT_BAN_')) {
       const parts = data.split('_');
       const actionType = parts[1]; // MUA hoặc BAN
@@ -411,9 +409,9 @@ if (botCon) {
       const giaBao = parseFloat(parts[3]);
       const totalMoney = parseFloat(parts[4]);
       const profit = parseFloat(parts[5]);
-      const usdtNeeded = parts[6] || '0'; // Số lượng USDT tương ứng
+      const usdtNeeded = parts[6] || '0';
 
-      // 1. Gửi thông báo chi tiết về Bot Mẹ, tích hợp thêm số USDT cần mua/giao dịch
+      // 1. Gửi thông báo chi tiết về Bot Mẹ kèm số USDT cần dùng
       const adminAlert = `🔔 **CÓ KHÁCH VỪA BẤM CHỐT ĐƠN ${actionType} QUA WHATSAPP!**\n\n` +
         `👤 Khách: ${userName} (ID: \`${userId}\`)\n` +
         `📌 Giao dịch: ${actionType} **${amount.toLocaleString('vi-VN')} AED**\n` +
@@ -435,13 +433,22 @@ if (botCon) {
       };
       botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
 
-      // 2. Tạo link WhatsApp có nội dung điền sẵn để mở cho khách
+      // 2. Tạo link WhatsApp kèm nội dung tự động điền sẵn
       const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn ${actionType} ${amount.toLocaleString('vi-VN')} AED với tỷ giá ${giaBao.toLocaleString('vi-VN')} VNĐ (Tổng: ${totalMoney.toLocaleString('vi-VN')} VNĐ) đã xem trên bot.`);
       const finalWsUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${wsText}`;
 
-      // Phản hồi cho khách mở link WhatsApp
-      botCon.answerCallbackQuery(query.id, { text: "Đang chuyển bạn sang WhatsApp..." });
-      return botCon.sendMessage(chatId, `👉 **Bấm vào liên kết bên dưới để mở WhatsApp và gửi tin nhắn chốt đơn:**\n\n[💬 Nhấn vào đây để chat WhatsApp](${finalWsUrl})`, { parse_mode: 'Markdown' });
+      // 3. Phản hồi cho khách bằng một nút bấm chuẩn xác, không bị hiện link lằng nhằng
+      botCon.answerCallbackQuery(query.id, { text: "Đang mở WhatsApp..." });
+      
+      const openWsKeyboard = {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "💬 Mở WhatsApp Chốt Đơn Ngay", url: finalWsUrl }]
+          ]
+        }
+      };
+
+      return botCon.sendMessage(chatId, `👉 **Yêu cầu đã được ghi nhận. Vui lòng bấm nút bên dưới để chuyển sang WhatsApp chốt đơn:**`, { parse_mode: 'Markdown', ...openWsKeyboard });
     }
   });
 }
@@ -457,4 +464,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống đã được cập nhật thêm thông tin số USDT cần dùng về Bot Mẹ!");
+console.log("🚀 Hệ thống Bot Mẹ & Bot Con đã hoàn tất toàn bộ tối ưu, sạch lỗi!");
