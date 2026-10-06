@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const cron = require('node-cron');
 
 // CƠ CHẾ KHÓA FILE NATIVE
 class NativeMutex {
@@ -83,7 +84,7 @@ async function recordTransaction(txData) {
       if (index >= 0) {
         txs[index] = { ...txs[index], ...txData };
       } else {
-        txs.push(txData);
+        txs.push({ ...txData, createdAt: new Date().toISOString() });
       }
       await fs.writeFile(TX_FILE, JSON.stringify(txs, null, 2), 'utf8');
     } catch (err) {
@@ -92,6 +93,7 @@ async function recordTransaction(txData) {
   });
 }
 
+// BÁO CÁO DOANH THU CHUẨN TỪ 00:00 ĐẾN 23:59 THEO GIỜ VIỆT NAM
 async function getDailySummary() {
   try {
     const txs = await getStoredTransactions();
@@ -100,7 +102,11 @@ async function getDailySummary() {
     let totalProfit = 0;
 
     txs.forEach(tx => {
-      if (tx.date === todayStr && tx.status === 'SUCCESS') {
+      const txDateStr = tx.createdAt 
+        ? new Date(tx.createdAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) 
+        : tx.date;
+
+      if (txDateStr === todayStr && tx.status === 'SUCCESS') {
         count++;
         totalProfit += (tx.profit || 0);
       }
@@ -344,13 +350,13 @@ async function handleBotMe(msg) {
       const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
       const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-      const msgReply = `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr}${dateStr})\n\n` +
+      const msgReply = `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr} ${dateStr})\n\n` +
         `🟢 Giá mua gốc sàn: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
         `🔴 Giá bán gốc sàn: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
         `🛠 **TỶ GIÁ TRƯỢT ĐỘNG THAM KHẢO:**\n` +
-        `🔷 500 AED: Mua ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán ${r500.ban.toLocaleString('vi-VN')}\n` +
-        `🔷 2.000 AED: Mua ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán ${r2000.ban.toLocaleString('vi-VN')}\n` +
-        `🔷 10.000 AED: Mua ${r10000.mua.toLocaleString('vi-VN')} \vert{} Bán ${r10000.ban.toLocaleString('vi-VN')}`;
+        `🔷 500 AED: Mua ${r500.mua.toLocaleString('vi-VN')} | Bán ${r500.ban.toLocaleString('vi-VN')}\n` +
+        `🔷 2.000 AED: Mua ${r2000.mua.toLocaleString('vi-VN')} | Bán ${r2000.ban.toLocaleString('vi-VN')}\n` +
+        `🔷 10.000 AED: Mua ${r10000.mua.toLocaleString('vi-VN')} | Bán ${r10000.ban.toLocaleString('vi-VN')}`;
 
       return botMe.editMessageText(msgReply, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
@@ -523,33 +529,4 @@ if (botCon) {
       const usdtNeeded = parts[6] || '0';
 
       const txId = 'TX-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-      const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-
-      await recordTransaction({ id: txId, date: todayStr, type: actionType, amount, profit, status: 'PENDING', userId });
-
-      try {
-        const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n👤 ${userName}\n📌 ${actionType} ${amount} AED\n• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n• USDT: \`${usdtNeeded}\``;
-        const adminKeyboard = { reply_markup: { inline_keyboard: [[{ text: "✅ Hoàn Thành", callback_data: `SUCCESS_${txId}` }, { text: "❌ Hủy", callback_data: `CANCEL_${txId}` }]] } };
-        await botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
-      } catch (err) {
-        console.error("❌ Admin chưa /start Bot Mẹ:", err.message);
-      }
-
-      const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn [${txId}] ${actionType}${amount} AED.`);
-      const finalWsUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${wsText}`;
-
-      return botCon.sendMessage(chatId, `✅ Mã đơn: \`${txId}\``, {
-        parse_mode: 'Markdown',
-        reply_markup: { inline_keyboard: [[{ text: "💬 Chốt Trên WhatsApp", url: finalWsUrl }]] }
-      });
-    }
-  });
-}
-
-botMe.on('polling_error', (error) => console.log(`[Bot Mẹ Polling Error]: ${error.code}`));
-if (botCon) botCon.on('polling_error', (error) => console.log(`[Bot Con Polling Error]: ${error.code}`));
-
-botMe.on('message', handleBotMe);
-if (botCon) botCon.on('message', handleBotCon);
-
-console.log("🚀 Server đã khởi chạy thành công!");
+      const todayStr = new Date
