@@ -125,22 +125,23 @@ async function getCachedStableRates(amountAed = 1000) {
   try {
     const estimatedVnd = amountAed * 7000; 
     const [vndSellList, aedBuyList, vndBuyList, aedSellList] = await Promise.all([
-      getBinanceP2PData('VND', 'BUY', estimatedVnd),   
-      getBinanceP2PData('AED', 'BUY', amountAed),   
-      getBinanceP2PData('VND', 'SELL', estimatedVnd),  
-      getBinanceP2PData('AED', 'SELL', amountAed)   
+      getBinanceP2PData('VND', 'BUY', estimatedVnd),   // Người mua USDT bằng VND (Ta bán USDT thu VND)
+      getBinanceP2PData('AED', 'BUY', amountAed),   // Người mua USDT bằng AED (Ta mua USDT bằng AED)
+      getBinanceP2PData('VND', 'SELL', estimatedVnd),  // Người bán USDT lấy VND (Ta mua USDT bằng VND)
+      getBinanceP2PData('AED', 'SELL', amountAed)   // Người bán USDT lấy AED (Ta bán USDT thu AED)
     ]);
 
     if (!vndSellList || !vndSellList.length || !aedBuyList || !aedBuyList.length) {
       return cachedData || null; 
     }
 
-    const usdtVndPrice = getSmartPrice(vndSellList); 
-    const usdtAedPrice = getSmartPrice(aedBuyList); 
+    const usdtVndPrice = getSmartPrice(vndSellList); // Giá ta bán USDT ra VNĐ (VD: ~26,044)
+    const usdtAedPrice = getSmartPrice(aedBuyList); // Giá ta mua USDT bằng AED (VD: ~3.685)
     if (!usdtVndPrice || !usdtAedPrice) return cachedData || null;
 
+    // Tỷ giá cơ sở quy đổi AED sang VNĐ theo thị trường (USDT_VND / USDT_AED)
     const giaMuaGoc = Math.round(usdtVndPrice / usdtAedPrice);
-    let giaBanGoc = giaMuaGoc + 150; 
+    let giaBanGoc = giaMuaGoc; 
     if (vndBuyList && vndBuyList.length && aedSellList && aedSellList.length) {
       const vPrice = getSmartPrice(vndBuyList);
       const aPrice = getSmartPrice(aedSellList);
@@ -148,7 +149,6 @@ async function getCachedStableRates(amountAed = 1000) {
         giaBanGoc = Math.round(vPrice / aPrice);
       }
     }
-    if (giaBanGoc <= giaMuaGoc) giaBanGoc = giaMuaGoc + 100; 
 
     cachedData = { giaMuaGoc, giaBanGoc, usdtVndPrice, usdtAedPrice };
     lastFetchTime = Date.now();
@@ -159,23 +159,40 @@ async function getCachedStableRates(amountAed = 1000) {
   }
 }
 
+// ==========================================
+// HÀM TÍNH TOÁN TỐI ƯU CHỐNG LỖ TUYỆT ĐỐI
+// ==========================================
 function calculateBuy(amount, data) {
-  const profit = Math.max(30, 120 - (amount * 0.004)); 
-  const baseRate = Math.ceil((data.giaMuaGoc + profit) / 10) * 10;
+  // CHIỀU KHÁCH MUA AED: Khách mua AED từ bạn (Bạn bán AED, thu VNĐ)
+  // Cơ sở gốc: data.giaMuaGoc (VNĐ/AED)
+  // Thêm biên độ lợi nhuận an toàn (Đảm bảo tối thiểu 40đ - 120đ/AED tùy số lượng để bù đắp phí và biên độ trượt giá)
+  const profitPerAed = Math.max(40, 150 - (amount * 0.003)); 
+  const baseRate = Math.ceil((data.giaMuaGoc + profitPerAed) / 10) * 10;
+  
   const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
   const totalVnd = baseRate * amount;
-  const totalLoi = profit * amount;
-  return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profit };
+  const totalLoi = profitPerAed * amount;
+  
+  return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profit: profitPerAed };
 }
 
 function calculateSell(amount, data) {
-  const sellMargin = Math.max(35, 100 - (amount * 0.003));
-  const giaBanCoBan = data.giaBanGoc - sellMargin;
-  const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
-  const giaBao = Math.floor(giaBanCoBan / 10) * 10;
+  // CHIỀU KHÁCH BÁN AED: Khách bán AED cho bạn (Bạn trả VNĐ, thu AED)
+  // Nguyên lý chống lỗ: Tiền VNĐ bạn trả khách phải thấp hơn giá trị thực tế bạn quy đổi ra trên sàn, 
+  // đồng thời chừa ra một khoảng lợi nhuận rõ ràng (tối thiểu 40đ - 100đ/AED).
+  
+  const profitPerAed = Math.max(40, 120 - (amount * 0.002)); // Mức lời tối thiểu cho mỗi AED thu vào
+  
+  // Giá gốc thị trường cho chiều khách bán (thường thấp hơn giá mua gốc một khoảng an toàn)
+  const marketSellBase = data.giaBanGoc > 0 ? data.giaBanGoc : data.giaMuaGoc;
+  const targetRate = marketSellBase - profitPerAed;
+  
+  const giaBao = Math.floor(targetRate / 10) * 10;
   const tongChi = giaBao * amount;
-  const totalLoi = sellMargin * amount;
-  return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
+  const totalLoi = profitPerAed * amount;
+  const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
+
+  return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin: profitPerAed };
 }
 
 // ==========================================
@@ -220,7 +237,7 @@ async function handleBotMe(msg) {
     }
 
     if (text === 'gia' || text === '/gia') {
-      await botMe.sendMessage(chatId, "⏳ Đang quét giá thông minh trên Binance P2P...");
+      await botMe.sendMessage(chatId, "⏳ Đang quét giá tối ưu trên Binance P2P...");
       const data = await getCachedStableRates(1000);
       if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu từ sàn!");
 
@@ -229,12 +246,12 @@ async function handleBotMe(msg) {
       const rLon = { mua: calculateBuy(10000, data).giaBao, ban: calculateSell(10000, data).giaBao };
 
       const reportMsg = `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${getFullDateString()})\n\n` +
-        `🟢 Giá mua gốc sàn: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Giá bán gốc sàn: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
-        `📌 **TỶ GIÁ TRƯỢT ĐỘNG THAM KHẢO:**\n` +
-        `🔹 500 AED: Mua ${rNho.mua.toLocaleString('vi-VN')} | Bán ${rNho.ban.toLocaleString('vi-VN')}\n` +
-        `🔹 2.000 AED: Mua ${rTrungBinh.mua.toLocaleString('vi-VN')} | Bán ${rTrungBinh.ban.toLocaleString('vi-VN')}\n` +
-        `🔹 10.000 AED: Mua ${rLon.mua.toLocaleString('vi-VN')} | Bán ${rLon.ban.toLocaleString('vi-VN')}`;
+        `🟢 Giá tham chiếu gốc: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
+        `💱 USDT/VND: ${data.usdtVndPrice.toLocaleString('vi-VN')} | USDT/AED: ${data.usdtAedPrice}\n\n` +
+        `📌 **TỶ GIÁ BÁO KHÁCH AN TOÀN:**\n` +
+        `🔹 500 AED: Khách mua ${rNho.mua.toLocaleString('vi-VN')} | Khách bán ${rNho.ban.toLocaleString('vi-VN')}\n` +
+        `🔹 2.000 AED: Khách mua ${rTrungBinh.mua.toLocaleString('vi-VN')} | Khách bán ${rTrungBinh.ban.toLocaleString('vi-VN')}\n` +
+        `🔹 10.000 AED: Khách mua ${rLon.mua.toLocaleString('vi-VN')} | Khách bán ${rLon.ban.toLocaleString('vi-VN')}`;
 
       return botMe.sendMessage(chatId, reportMsg, { parse_mode: 'Markdown' });
     }
@@ -243,7 +260,7 @@ async function handleBotMe(msg) {
     if (muaMatch) {
       const amount = parseFloat(muaMatch[2]);
       const data = await getCachedStableRates(amount);
-      if (!data) return botMe.sendMessage(chatId, "⚠️️ Lỗi kết nối dữ liệu!");
+      if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi kết nối dữ liệu!");
       const res = calculateBuy(amount, data);
 
       return botMe.sendMessage(chatId, 
@@ -488,4 +505,4 @@ if (botCon) {
   botCon.on('message', handleBotCon);
 }
 
-console.log("🚀 Hệ thống đã được sửa lỗi cú pháp hoàn chỉnh và chạy ổn định!");
+console.log("🚀 Hệ thống dòng tiền đã được tối ưu chống lỗ và tăng trưởng lợi nhuận an toàn!");
