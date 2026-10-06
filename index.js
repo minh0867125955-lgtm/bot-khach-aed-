@@ -204,16 +204,16 @@ async function getCachedStableRates(amountAed = 1000) {
   }
 }
 
-// LOGIC TÍNH KHÁCH MUA (LÃI BẮT ĐẦU TỪ +200 VNĐ)
+// HÀM TÍNH KHÁCH MUA (Khách trả tiền cho bạn -> Tỷ giá = Giá gốc + Lãi)
 function calculateBuy(amount, data) {
-  let profitMargin = 200; // Mốc 1: Từ 200 đến 999 AED (< 1000) -> Lãi +200 VNĐ
+  let profitMargin = 200; // Mốc 1: Từ 200 đến 1.000 AED (Bao gồm tròn 1.000)
 
-  if (amount >= 10000) {
-    profitMargin = 60;    // Mốc 4: Từ 10.000 AED trở lên -> Lãi +60 VNĐ
-  } else if (amount >= 5000) {
-    profitMargin = 100;   // Mốc 3: Từ 5.000 đến 9.999 AED -> Lãi +100 VNĐ
-  } else if (amount >= 1000) {
-    profitMargin = 150;   // Mốc 2: Từ 1.000 đến 4.999 AED -> Lãi +150 VNĐ
+  if (amount > 10000) {
+    profitMargin = 60;    // Mốc 4: Trên 10.000 AED
+  } else if (amount > 5000) {
+    profitMargin = 100;   // Mốc 3: Từ 5.001 đến 10.000 AED
+  } else if (amount > 1000) {
+    profitMargin = 150;   // Mốc 2: Từ 1.001 đến 5.000 AED
   }
 
   const baseRate = Math.ceil((data.giaMuaGoc + profitMargin) / 10) * 10;
@@ -223,21 +223,21 @@ function calculateBuy(amount, data) {
   return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profitMargin };
 }
 
-// LOGIC TÍNH KHÁCH BÁN (LÃI BẮT ĐẦU TỪ -150 VNĐ)
+// HÀM TÍNH KHÁCH BÁN (Bạn trả tiền cho khách -> Tỷ giá = Giá gốc - Lãi)
 function calculateSell(amount, data) {
-  let sellMargin = 150;  // Mốc 1: Từ 200 đến 999 AED (< 1000) -> Lãi +150 VNĐ
+  let sellMargin = 200;  // Mốc 1: Từ 200 đến 1.000 AED (Bao gồm tròn 1.000)
 
-  if (amount >= 10000) {
-    sellMargin = 40;     // Mốc 4: Từ 10.000 AED trở lên -> Lãi +40 VNĐ
-  } else if (amount >= 5000) {
-    sellMargin = 70;     // Mốc 3: Từ 5.000 đến 9.999 AED -> Lãi +70 VNĐ
-  } else if (amount >= 1000) {
-    sellMargin = 100;    // Mốc 2: Từ 1.000 đến 4.999 AED -> Lãi +100 VNĐ
+  if (amount > 10000) {
+    sellMargin = 60;     // Mốc 4: Trên 10.000 AED
+  } else if (amount > 5000) {
+    sellMargin = 100;    // Mốc 3: Từ 5.001 đến 10.000 AED
+  } else if (amount > 1000) {
+    sellMargin = 150;    // Mốc 2: Từ 1.001 đến 5.000 AED
   }
 
   const giaBanCoBan = data.giaBanGoc - sellMargin;
+  const giaBao = Math.floor(giaBanCoBan / 10) * 10; // Làm tròn xuống để bảo toàn tiền lãi
   const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
-  const giaBao = Math.floor(giaBanCoBan / 10) * 10;
   const tongChi = giaBao * amount;
   const totalLoi = sellMargin * amount;
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
@@ -304,7 +304,7 @@ async function handleBotMe(msg) {
     const banMatch = text.match(/^(\/)?(?:ban|bán)\s+(.+)$/i);
     if (banMatch) {
       const parsed = parseInputAmount(banMatch[2]);
-      if (!parsed) return botMe.sendMessage(chatId, "⚠️️ Nhập sai số tiền!");
+      if (!parsed) return botMe.sendMessage(chatId, "⚠ Nhập sai số tiền!");
 
       let aedAmount = parsed.amount;
       if (parsed.isVnd) aedAmount = Math.round(parsed.amount / 7000);
