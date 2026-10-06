@@ -210,16 +210,16 @@ async function getCachedStableRates(amountAed = 1000) {
   }
 }
 
-// HÀM TÍNH KHÁCH MUA (Khách trả tiền cho bạn -> Tỷ giá = Giá gốc + Lãi)
+// 🟢 KHÁCH MUA (Khách trả VNĐ lấy AED -> Số lượng càng LỚN thì Tỷ giá CÀNG RẺ/THẤP)
 function calculateBuy(amount, data) {
-  let profitMargin = 200; // Mốc 1: Từ 200 đến 1.000 AED (Bao gồm tròn 1.000)
+  let profitMargin = 200; // <= 1.000 AED: Lãi 200đ
 
   if (amount > 10000) {
-    profitMargin = 60;    // Mốc 4: Trên 10.000 AED
+    profitMargin = 60;    // > 10.000 AED: Lãi 60đ (Tỷ giá thấp nhất)
   } else if (amount > 5000) {
-    profitMargin = 100;   // Mốc 3: Từ 5.001 đến 10.000 AED
+    profitMargin = 100;   // 5.001 - 10.000 AED: Lãi 100đ
   } else if (amount > 1000) {
-    profitMargin = 150;   // Mốc 2: Từ 1.001 đến 5.000 AED
+    profitMargin = 150;   // 1.001 - 5.000 AED: Lãi 150đ
   }
 
   const baseRate = Math.ceil((data.giaMuaGoc + profitMargin) / 10) * 10;
@@ -229,16 +229,16 @@ function calculateBuy(amount, data) {
   return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profitMargin };
 }
 
-// HÀM TÍNH KHÁCH BÁN (Bạn trả tiền cho khách -> Tỷ giá = Giá gốc - Lãi)
+// 🔴 KHÁCH BÁN (Khách đưa AED lấy VNĐ -> Số lượng càng LỚN thì Tỷ giá CÀNG CAO cho khách)
 function calculateSell(amount, data) {
-  let sellMargin = 200;  // Mốc 1: Từ 200 đến 1.000 AED (Bao gồm tròn 1.000)
+  let sellMargin = 200;  // <= 1.000 AED: Trừ lãi 200đ (Khách nhận tỷ giá thấp)
 
   if (amount > 10000) {
-    sellMargin = 60;     // Mốc 4: Trên 10.000 AED
+    sellMargin = 60;     // > 10.000 AED: Chỉ trừ 60đ lãi (Khách nhận tỷ giá CAO NHẤT)
   } else if (amount > 5000) {
-    sellMargin = 100;    // Mốc 3: Từ 5.001 đến 10.000 AED
+    sellMargin = 100;    // 5.001 - 10.000 AED: Trừ 100đ lãi
   } else if (amount > 1000) {
-    sellMargin = 150;    // Mốc 2: Từ 1.001 đến 5.000 AED
+    sellMargin = 150;    // 1.001 - 5.000 AED: Trừ 150đ lãi
   }
 
   const giaBanCoBan = data.giaBanGoc - sellMargin;
@@ -310,7 +310,7 @@ async function handleBotMe(msg) {
     const banMatch = text.match(/^(\/)?(?:ban|bán)\s+(.+)$/i);
     if (banMatch) {
       const parsed = parseInputAmount(banMatch[2]);
-      if (!parsed) return botMe.sendMessage(chatId, "⚠ Nhập sai số tiền!");
+      if (!parsed) return botMe.sendMessage(chatId, "⚠️ Nhập sai số tiền!");
 
       let aedAmount = parsed.amount;
       if (parsed.isVnd) aedAmount = Math.round(parsed.amount / 7000);
@@ -553,7 +553,6 @@ if (botCon) {
 }
 
 // ==================== TỰ ĐỘNG TỔNG KẾT BÁO CÁO CUỐI NGÀY ====================
-// Chạy tự động vào đúng 23:59:00 mỗi đêm theo múi giờ Việt Nam
 cron.schedule('59 23 * * *', async () => {
   try {
     const summary = await getDailySummary();
