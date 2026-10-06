@@ -208,8 +208,10 @@ async function getCachedStableRates(amountAed = 1000) {
 function calculateBuy(amount, data) {
   let profitMargin = 200; // <= 1.000 AED: Lãi 200đ
 
-  if (amount > 10000) {
-    profitMargin = 60;    // > 10.000 AED: Lãi 60đ
+  if (amount >= 50001) {
+    profitMargin = 40;    // >= 50.001 AED: Lãi 40đ
+  } else if (amount > 10000) {
+    profitMargin = 60;    // 10.001 - 50.000 AED: Lãi 60đ
   } else if (amount > 5000) {
     profitMargin = 100;   // 5.001 - 10.000 AED: Lãi 100đ
   } else if (amount > 1000) {
@@ -223,12 +225,14 @@ function calculateBuy(amount, data) {
   return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profitMargin };
 }
 
-// 🔴 KHÁCH BÁN (Khách đưa AED lấy VNĐ - Mốc 5K - 10K là 75đ)
+// 🔴 KHÁCH BÁN (Khách đưa AED lấy VNĐ)
 function calculateSell(amount, data) {
   let sellMargin = 200;  // <= 1.000 AED: Trừ 200đ
 
-  if (amount > 10000) {
-    sellMargin = 60;     // > 10.000 AED: Trừ 60đ
+  if (amount >= 50001) {
+    sellMargin = 40;     // >= 50.001 AED: Trừ 40đ
+  } else if (amount > 10000) {
+    sellMargin = 60;     // 10.001 - 50.000 AED: Trừ 60đ
   } else if (amount > 5000) {
     sellMargin = 75;     // 5.001 - 10.000 AED: Trừ 75đ
   } else if (amount > 1000) {
@@ -319,7 +323,7 @@ async function handleBotMe(msg) {
 
       const data = await getCachedStableRates(aedAmount);
       if (!data) {
-        return botMe.editMessageText("⚠️️ Lỗi kết nối API Binance!", { chat_id: chatId, message_id: waitingMsg.message_id });
+        return botMe.editMessageText("⚠️ Lỗi kết nối API Binance!", { chat_id: chatId, message_id: waitingMsg.message_id });
       }
 
       const res = calculateSell(aedAmount, data);
@@ -342,9 +346,12 @@ async function handleBotMe(msg) {
         return botMe.editMessageText("⚠️ Lỗi API Binance!", { chat_id: chatId, message_id: waitingMsg.message_id });
       }
 
+      // TÍNH GIÁ ĐẦY ĐỦ CẢ 5 MỐC
       const r500 = { mua: calculateBuy(500, data).giaBao, ban: calculateSell(500, data).giaBao };
       const r2000 = { mua: calculateBuy(2000, data).giaBao, ban: calculateSell(2000, data).giaBao };
-      const r10000 = { mua: calculateBuy(10000, data).giaBao, ban: calculateSell(10000, data).giaBao };
+      const r7500 = { mua: calculateBuy(7500, data).giaBao, ban: calculateSell(7500, data).giaBao };
+      const r20000 = { mua: calculateBuy(20000, data).giaBao, ban: calculateSell(20000, data).giaBao };
+      const r50000 = { mua: calculateBuy(50001, data).giaBao, ban: calculateSell(50001, data).giaBao };
 
       const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
       const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
@@ -352,10 +359,17 @@ async function handleBotMe(msg) {
       const msgReply = `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr}${dateStr})\n\n` +
         `🟢 Giá mua gốc sàn: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
         `🔴 Giá bán gốc sàn: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
-        `🛠 **TỶ GIÁ TRƯỢT ĐỘNG THAM KHẢO:**\n` +
-        `🔷 500 AED: Mua ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán ${r500.ban.toLocaleString('vi-VN')}\n` +
-        `🔷 2.000 AED: Mua ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán ${r2000.ban.toLocaleString('vi-VN')}\n` +
-        `🔷 10.000 AED: Mua ${r10000.mua.toLocaleString('vi-VN')} \vert{} Bán ${r10000.ban.toLocaleString('vi-VN')}`;
+        `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
+        `🔹 **≤ 1.000 AED (Lãi 200đ):**\n` +
+        `   • Mua: ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
+        `🔹 **1.001 - 5.000 AED (Lãi 150đ):**\n` +
+        `   • Mua: ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
+        `🔹 **5.001 - 10.000 AED (Mua +100đ / Bán -75đ):**\n` +
+        `   • Mua: ${r7500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r7500.ban.toLocaleString('vi-VN')}\n` +
+        `🔹 **10.001 - 50.000 AED (Lãi 60đ):**\n` +
+        `   • Mua: ${r20000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r20000.ban.toLocaleString('vi-VN')}\n` +
+        `🔹 **≥ 50.001 AED (Lãi 40đ):**\n` +
+        `   • Mua: ${r50000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r50000.ban.toLocaleString('vi-VN')}`;
 
       return botMe.editMessageText(msgReply, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
