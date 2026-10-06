@@ -350,13 +350,13 @@ async function handleBotMe(msg) {
       const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
       const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-      const msgReply = `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr} ${dateStr})\n\n` +
+      const msgReply = `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr}${dateStr})\n\n` +
         `🟢 Giá mua gốc sàn: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
         `🔴 Giá bán gốc sàn: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
         `🛠 **TỶ GIÁ TRƯỢT ĐỘNG THAM KHẢO:**\n` +
-        `🔷 500 AED: Mua ${r500.mua.toLocaleString('vi-VN')} | Bán ${r500.ban.toLocaleString('vi-VN')}\n` +
-        `🔷 2.000 AED: Mua ${r2000.mua.toLocaleString('vi-VN')} | Bán ${r2000.ban.toLocaleString('vi-VN')}\n` +
-        `🔷 10.000 AED: Mua ${r10000.mua.toLocaleString('vi-VN')} | Bán ${r10000.ban.toLocaleString('vi-VN')}`;
+        `🔷 500 AED: Mua ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán ${r500.ban.toLocaleString('vi-VN')}\n` +
+        `🔷 2.000 AED: Mua ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán ${r2000.ban.toLocaleString('vi-VN')}\n` +
+        `🔷 10.000 AED: Mua ${r10000.mua.toLocaleString('vi-VN')} \vert{} Bán ${r10000.ban.toLocaleString('vi-VN')}`;
 
       return botMe.editMessageText(msgReply, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
@@ -529,4 +529,54 @@ if (botCon) {
       const usdtNeeded = parts[6] || '0';
 
       const txId = 'TX-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-      const todayStr = new Date
+      const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+
+      await recordTransaction({ id: txId, date: todayStr, type: actionType, amount, profit, status: 'PENDING', userId });
+
+      try {
+        const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n👤 ${userName}\n📌 ${actionType} ${amount} AED\n• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n• USDT: \`${usdtNeeded}\``;
+        const adminKeyboard = { reply_markup: { inline_keyboard: [[{ text: "✅ Hoàn Thành", callback_data: `SUCCESS_${txId}` }, { text: "❌ Hủy", callback_data: `CANCEL_${txId}` }]] } };
+        await botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
+      } catch (err) {
+        console.error("❌ Admin chưa /start Bot Mẹ:", err.message);
+      }
+
+      const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn [${txId}] ${actionType}${amount} AED.`);
+      const finalWsUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${wsText}`;
+
+      return botCon.sendMessage(chatId, `✅ Mã đơn: \`${txId}\``, {
+        parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: [[{ text: "💬 Chốt Trên WhatsApp", url: finalWsUrl }]] }
+      });
+    }
+  });
+}
+
+// ==================== TỰ ĐỘNG TỔNG KẾT BÁO CÁO CUỐI NGÀY ====================
+// Chạy tự động vào đúng 23:59:00 mỗi đêm theo múi giờ Việt Nam
+cron.schedule('59 23 * * *', async () => {
+  try {
+    const summary = await getDailySummary();
+    const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+
+    const msgSummary = `🌙 **TỔNG KẾT DOANH THU CUỐI NGÀY (${todayStr})**\n\n` +
+      `📦 Tổng số đơn hoàn thành: **${summary.count}** đơn\n` +
+      `💵 Tổng lợi nhuận thu về: **+${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ**\n\n` +
+      `✨ *Chúc bạn nghỉ ngơi vui vẻ!*`;
+
+    await botMe.sendMessage(ADMIN_TELEGRAM_ID, msgSummary, { parse_mode: 'Markdown' });
+    console.log(`[CRONJOB] Đã gửi báo cáo tổng kết ngày ${todayStr} thành công.`);
+  } catch (err) {
+    console.error("Lỗi gửi báo cáo tự động cuối ngày:", err.message);
+  }
+}, {
+  timezone: "Asia/Ho_Chi_Minh"
+});
+
+botMe.on('polling_error', (error) => console.log(`[Bot Mẹ Polling Error]: ${error.code}`));
+if (botCon) botCon.on('polling_error', (error) => console.log(`[Bot Con Polling Error]: ${error.code}`));
+
+botMe.on('message', handleBotMe);
+if (botCon) botCon.on('message', handleBotCon);
+
+console.log("🚀 Server đã khởi chạy thành công!");
