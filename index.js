@@ -5,7 +5,7 @@ const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// CƠ CHẾ KHÓA FILE NATIVE (AN TOÀN TRÊN CLOUD)
+// CƠ CHẾ KHÓA FILE NATIVE
 class NativeMutex {
   constructor() {
     this._queue = Promise.resolve();
@@ -41,7 +41,7 @@ if (!fsSync.existsSync(TX_FILE)) fsSync.writeFileSync(TX_FILE, '[]', 'utf8');
 
 let cachedData = null;
 let lastFetchTime = 0;
-const CACHE_DURATION = 20 * 1000; // Cache API Binance 20s
+const CACHE_DURATION = 20 * 1000;
 
 async function getStoredUsers() {
   try {
@@ -111,7 +111,6 @@ async function getDailySummary() {
   }
 }
 
-// HÀM BẮT CHUỖI NHẬP VÀ PHÂN BIỆT TIỀN VNĐ VÀ AED
 function parseInputAmount(text) {
   if (!text) return null;
   let clean = text.toLowerCase().trim();
@@ -205,10 +204,17 @@ async function getCachedStableRates(amountAed = 1000) {
   }
 }
 
+// LOGIC TÍNH KHÁCH MUA (LÃI BẮT ĐẦU TỪ +200 VNĐ)
 function calculateBuy(amount, data) {
-  let profitMargin = 120;
-  if (amount >= 5000) profitMargin = 60;
-  else if (amount >= 1000) profitMargin = 85;
+  let profitMargin = 200; // Mốc 1: Từ 200 đến 999 AED (< 1000) -> Lãi +200 VNĐ
+
+  if (amount >= 10000) {
+    profitMargin = 60;    // Mốc 4: Từ 10.000 AED trở lên -> Lãi +60 VNĐ
+  } else if (amount >= 5000) {
+    profitMargin = 100;   // Mốc 3: Từ 5.000 đến 9.999 AED -> Lãi +100 VNĐ
+  } else if (amount >= 1000) {
+    profitMargin = 150;   // Mốc 2: Từ 1.000 đến 4.999 AED -> Lãi +150 VNĐ
+  }
 
   const baseRate = Math.ceil((data.giaMuaGoc + profitMargin) / 10) * 10;
   const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
@@ -217,10 +223,17 @@ function calculateBuy(amount, data) {
   return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profitMargin };
 }
 
+// LOGIC TÍNH KHÁCH BÁN (LÃI BẮT ĐẦU TỪ -150 VNĐ)
 function calculateSell(amount, data) {
-  let sellMargin = 100;
-  if (amount >= 5000) sellMargin = 50; 
-  else if (amount >= 1000) sellMargin = 70; 
+  let sellMargin = 150;  // Mốc 1: Từ 200 đến 999 AED (< 1000) -> Lãi +150 VNĐ
+
+  if (amount >= 10000) {
+    sellMargin = 40;     // Mốc 4: Từ 10.000 AED trở lên -> Lãi +40 VNĐ
+  } else if (amount >= 5000) {
+    sellMargin = 70;     // Mốc 3: Từ 5.000 đến 9.999 AED -> Lãi +70 VNĐ
+  } else if (amount >= 1000) {
+    sellMargin = 100;    // Mốc 2: Từ 1.000 đến 4.999 AED -> Lãi +100 VNĐ
+  }
 
   const giaBanCoBan = data.giaBanGoc - sellMargin;
   const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
@@ -230,7 +243,7 @@ function calculateSell(amount, data) {
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
 
-// ==================== BOT MẸ QUẢN LÝ (GIAO DIỆN CHỦYỂN ĐỔI CHUẨN MỚI) ====================
+// ==================== BOT MẸ QUẢN LÝ ====================
 async function handleBotMe(msg) {
   if (!msg?.text) return;
   const chatId = msg.chat.id;
@@ -260,7 +273,6 @@ async function handleBotMe(msg) {
       return botMe.sendMessage(chatId, `📊 Đơn: **${summary.count}** | Lãi: **+${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ**`, { parse_mode: 'Markdown' });
     }
 
-    // LỆNH MUA DÀNH CHO BOT MẸ (THEO ĐỊNH DẠNG HÌNH 2)
     const muaMatch = text.match(/^(\/)?mua\s+(.+)$/i);
     if (muaMatch) {
       const parsed = parseInputAmount(muaMatch[2]);
@@ -289,11 +301,10 @@ async function handleBotMe(msg) {
       return botMe.editMessageText(msgReply, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
 
-    // LỆNH BÁN DÀNH CHO BOT MẸ (THEO ĐỊNH DẠNG HÌNH 2)
     const banMatch = text.match(/^(\/)?(?:ban|bán)\s+(.+)$/i);
     if (banMatch) {
       const parsed = parseInputAmount(banMatch[2]);
-      if (!parsed) return botMe.sendMessage(chatId, "⚠️ Nhập sai số tiền!");
+      if (!parsed) return botMe.sendMessage(chatId, "⚠️️ Nhập sai số tiền!");
 
       let aedAmount = parsed.amount;
       if (parsed.isVnd) aedAmount = Math.round(parsed.amount / 7000);
@@ -318,7 +329,6 @@ async function handleBotMe(msg) {
       return botMe.editMessageText(msgReply, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
 
-    // LỆNH GIA (BÁO CÁO QUẢN TRỊ TRƯỢT ĐỘNG - GIỮ NGUYÊN)
     if (lowerText === 'gia' || lowerText === '/gia') {
       const waitingMsg = await botMe.sendMessage(chatId, `⏳ Đang quét giá thông minh trên Binance P2P...`);
 
