@@ -4,10 +4,22 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { Mutex } = require('async-mutex');
 
-const fileMutex = new Mutex();
+// CO CONG CU KHOA FILE NATIVE (KHONG CAN CAI ASYNC-MUTEX)
+class NativeMutex {
+  constructor() {
+    this._queue = Promise.resolve();
+  }
+  runExclusive(fn) {
+    const res = this._queue.then(() => fn());
+    this._queue = res.catch(() => {});
+    return res;
+  }
+}
 
+const fileMutex = new NativeMutex();
+
+// KHOI TAO PHIM BIEN MOI TRUONG
 const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_BOT_TOKEN || 'NHAP_TOKEN_BOT_ME';
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON || 'NHAP_TOKEN_BOT_CON';
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '7466244815'; 
@@ -24,12 +36,13 @@ const botCon = TOKEN_CON ? new TelegramBot(TOKEN_CON, { polling: true }) : null;
 const USER_FILE = path.join(__dirname, 'bot_con_users.json');
 const TX_FILE = path.join(__dirname, 'transactions.json');
 
+// KHOI TAO FILE NEU CHUA TON TAI
 if (!fsSync.existsSync(USER_FILE)) fsSync.writeFileSync(USER_FILE, '[]', 'utf8');
 if (!fsSync.existsSync(TX_FILE)) fsSync.writeFileSync(TX_FILE, '[]', 'utf8');
 
 let cachedData = null;
 let lastFetchTime = 0;
-const CACHE_DURATION = 20 * 1000;
+const CACHE_DURATION = 20 * 1000; // 20 giay cache api binance
 
 async function getStoredUsers() {
   try {
@@ -99,17 +112,12 @@ async function getDailySummary() {
   }
 }
 
-function getFullDateString() {
-  const now = new Date();
-  return `${now.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false })}${now.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`;
-}
-
-// LỌC CHUỖI NHẬP LIỆU BỔ SUNG KHẮC PHỤC LỖI KHÁCH GÕ DÍNH TỪ (1000AED, 20TR, 1K)
+// XU LY CHUOI CHAT KHANH GO (1000aed, 20tr, 1k, 500vnd)
 function parseInputAmount(text) {
   if (!text) return null;
   let clean = text.toLowerCase().trim();
   
-  // Xóa bỏ các ký tự đơn vị tiền tệ dính kèm
+  // Loai bo ky tu don vi dinh kem
   clean = clean.replace(/aed/g, '').replace(/vnd/g, '').replace(/đ/g, '').trim();
   clean = clean.replace(/,/g, '').replace(/\./g, '');
   
@@ -220,7 +228,7 @@ function calculateSell(amount, data) {
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
 
-// BOT MẸ
+// BOT ME QUAN LY
 async function handleBotMe(msg) {
   if (!msg?.text) return;
   const chatId = msg.chat.id;
@@ -246,7 +254,6 @@ async function handleBotMe(msg) {
       if (!data) return botMe.sendMessage(chatId, "⚠️ Lỗi API!");
 
       const r500 = { mua: calculateBuy(500, data).giaBao, ban: calculateSell(500, data).giaBao };
-      // ĐÃ SỬA DẤU GẠCH ĐỨNG CHUẨN TRÁNH LỖI MARKDOWN TELEGRAM
       return botMe.sendMessage(chatId, `📊 **TỶ GIÁ GỐC:** Mua ${data.giaMuaGoc} \vert{} Bán ${data.giaBanGoc}\n👉 Báo khách 500 AED: Mua ${r500.mua} \vert{} Bán ${r500.ban}`, { parse_mode: 'Markdown' });
     }
   } catch (err) {
@@ -256,7 +263,6 @@ async function handleBotMe(msg) {
 
 if (botMe) {
   botMe.on('callback_query', async (query) => {
-    // AN TOÀN DỮ LIỆU CALLBACK DATA
     if (!query?.data) return;
     const dataParts = query.data.split('_');
     if (dataParts.length < 2) return;
@@ -268,7 +274,7 @@ if (botMe) {
     const targetTx = txs.find(t => t.id === txId);
 
     if (!targetTx || targetTx.status !== 'PENDING') {
-      return botMe.answerCallbackQuery(query.id, { text: "Đơn hàng này đã được xử lý hoặc không tồn tại!" });
+      return botMe.answerCallbackQuery(query.id, { text: "Đơn hàng này đã được xử lý trước đó!" });
     }
 
     if (action === 'SUCCESS') {
@@ -282,7 +288,7 @@ if (botMe) {
   });
 }
 
-// BOT CON
+// BOT CON GIAO DIEN KHANH HANG
 async function handleBotCon(msg) {
   if (!botCon || !msg?.text) return;
   const chatId = msg.chat.id;
@@ -377,12 +383,13 @@ if (botCon) {
 
       await recordTransaction({ id: txId, date: todayStr, type: actionType, amount, profit, status: 'PENDING', userId });
 
+      // TRY-CATCH NGAN LỖI 403 BAN BOT ME
       try {
         const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n👤 ${userName}\n📌 ${actionType} ${amount} AED\n• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n• USDT: \`${usdtNeeded}\``;
         const adminKeyboard = { reply_markup: { inline_keyboard: [[{ text: "✅ Hoàn Thành", callback_data: `SUCCESS_${txId}` }, { text: "❌ Hủy", callback_data: `CANCEL_${txId}` }]] } };
         await botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
       } catch (err) {
-        console.error("❌ Không thể gửi tin cho Admin (Admin chưa bấm /start Bot Mẹ):", err.message);
+        console.error("❌ ADMIN CHƯA BẤM /START BOT MẸ:", err.message);
       }
 
       const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn [${txId}] ${actionType}${amount} AED.`);
@@ -396,10 +403,11 @@ if (botCon) {
   });
 }
 
+// BAT LOI POLLING KHI CHAT CHON MANG
 botMe.on('polling_error', (error) => console.log(`[Bot Mẹ Polling Error]: ${error.code}`));
 if (botCon) botCon.on('polling_error', (error) => console.log(`[Bot Con Polling Error]: ${error.code}`));
 
 botMe.on('message', handleBotMe);
 if (botCon) botCon.on('message', handleBotCon);
 
-console.log("🚀 Hệ thống đã sẵn sàng 100%!");
+console.log("🚀 Server đã khởi chạy thành công!");
