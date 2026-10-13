@@ -27,7 +27,7 @@ const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '7466244815';
 const WHATSAPP_PHONE = '84373350255'; 
 
 if (!TOKEN_ME) {
-  console.error("❌ LỖI KHỞI ĐỘNG: Chưa khai báo TELEGRAM_BOT_TOKEN_ME hoặc TELEGRAM_BOT_TOKEN trong Environment Variables!");
+  console.error("❌ LỖI KHỞI ĐỘNG: Chưa khai báo TELEGRAM_BOT_TOKEN_ME hoặc TELEGRAM_BOT_TOKEN!");
   process.exit(1);
 }
 
@@ -36,9 +36,11 @@ const botCon = TOKEN_CON ? new TelegramBot(TOKEN_CON, { polling: true }) : null;
 
 const USER_FILE = path.join(__dirname, 'bot_con_users.json');
 const TX_FILE = path.join(__dirname, 'transactions.json');
+const HISTORY_FILE = path.join(__dirname, 'rate_history.json');
 
 if (!fsSync.existsSync(USER_FILE)) fsSync.writeFileSync(USER_FILE, '[]', 'utf8');
 if (!fsSync.existsSync(TX_FILE)) fsSync.writeFileSync(TX_FILE, '[]', 'utf8');
+if (!fsSync.existsSync(HISTORY_FILE)) fsSync.writeFileSync(HISTORY_FILE, '[]', 'utf8');
 
 let cachedData = null;
 let lastFetchTime = 0;
@@ -93,7 +95,29 @@ async function recordTransaction(txData) {
   });
 }
 
-// BÁO CÁO DOANH THU CHUẨN TỪ 00:00 ĐẾN 23:59 THEO GIỜ VIỆT NAM
+// LƯU LỊCH SỬ TỶ GIÁ ĐỂ DỰ BÁO XU HƯỚNG
+async function saveRateHistory(data) {
+  return fileMutex.runExclusive(async () => {
+    try {
+      const historyStr = await fs.readFile(HISTORY_FILE, 'utf8');
+      const history = JSON.parse(historyStr);
+      const record = {
+        timestamp: new Date().toISOString(),
+        date: new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+        giaMuaGoc: data.giaMuaGoc,
+        giaBanGoc: data.giaBanGoc
+      };
+      history.push(record);
+      // Giữ lại lịch sử trong 30 ngày gần nhất
+      if (history.length > 500) history.shift();
+      await fs.writeFile(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8');
+    } catch (err) {
+      console.error("Lỗi lưu lịch sử tỷ giá:", err.message);
+    }
+  });
+}
+
+// BÁO CÁO DOANH THU & DỰ BÁO TỔNG HỢP
 async function getDailySummary() {
   try {
     const txs = await getStoredTransactions();
@@ -111,9 +135,42 @@ async function getDailySummary() {
         totalProfit += (tx.profit || 0);
       }
     });
-    return { count, totalProfit };
+
+    // PHÂN TÍCH XU HƯỚNG DỰ BÁO CHO NGÀY HOM SAU
+    let forecastMsg = "";
+    try {
+      const historyStr = await fs.readFile(HISTORY_FILE, 'utf8');
+      const history = JSON.parse(historyStr);
+      const todayRecords = history.filter(h => h.date === todayStr);
+
+      if (todayRecords.length >= 2) {
+        const firstRec = todayRecords[0];
+        const lastRec = todayRecords[todayRecords.length - 1];
+        const diffBan = lastRec.giaBanGoc - firstRec.giaBanGoc;
+
+        if (diffBan > 10) {
+          forecastMsg = `📈 **DỰ BÁO XU HƯỚNG NGÀY MAI:**\n` +
+            `Tỷ giá BÁN AED chốt ngày có xu hướng **TĂNG (+${diffBan}đ)** so với đầu ngày.\n` +
+            `👉 *Gợi ý:* Xu hướng đang tăng, ưu tiên chốt các đơn BÁN AED lớn trong phiên sáng mai để tối đa lợi nhuận!`;
+        } else if (diffBan < -10) {
+          forecastMsg = `📉 **DỰ BÁO XU HƯỚNG NGÀY MAI:**\n` +
+            `Tỷ giá BÁN AED chốt ngày có xu hướng **GIẢM (${diffBan}đ)**.\n` +
+            `👉 *Gợi ý:* Thị trường đang hạ nhiệt, nên kiên nhẫn tích trữ vốn chờ phiên tối chốt đơn.`;
+        } else {
+          forecastMsg = `📊 **DỰ BÁO XU HƯỚNG NGÀY MAI:**\n` +
+            `Tỷ giá P2P tương đối **ỔN ĐỊNH** trong ngày.\n` +
+            `👉 *Gợi ý:* Giữ nguyên các mốc biên độ lãi hiện tại để duy trì tính cạnh tranh.`;
+        }
+      } else {
+        forecastMsg = `🔮 **DỰ BÁO XU HƯỚNG:** Dữ liệu đang được tự động tích lũy thêm cho ngày tới.`;
+      }
+    } catch (e) {
+      forecastMsg = `🔮 **DỰ BÁO XU HƯỚNG:** Chưa đủ dữ liệu đối soát.`;
+    }
+
+    return { count, totalProfit, forecastMsg };
   } catch (err) {
-    return { count: 0, totalProfit: 0 };
+    return { count: 0, totalProfit: 0, forecastMsg: "" };
   }
 }
 
@@ -198,6 +255,10 @@ async function getCachedStableRates(amountAed = 1000) {
 
     cachedData = { giaMuaGoc, giaBanGoc, usdtVndPrice: usdtVndBuyPrice, usdtVndSellPrice, usdtAedPrice };
     lastFetchTime = Date.now();
+
+    // TỰ ĐỘNG GHI LỊCH SỬ GIÁ NẾU QUÁ 30 PHÚT
+    saveRateHistory(cachedData).catch(() => {});
+
     return cachedData;
   } catch (err) {
     return cachedData || null;
@@ -252,6 +313,37 @@ function calculateSell(amount, data) {
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
 
+// HÀM TẠO BÁO CÁO GIÁ ĐẦY ĐỦ 5 MỐC
+async function buildPriceReport(tagLine = "") {
+  const data = await getCachedStableRates(1000);
+  if (!data) return "⚠️ Không thể kết nối API Binance!";
+
+  const r500 = { mua: calculateBuy(500, data).giaBao, ban: calculateSell(500, data).giaBao };
+  const r2000 = { mua: calculateBuy(2000, data).giaBao, ban: calculateSell(2000, data).giaBao };
+  const r7500 = { mua: calculateBuy(7500, data).giaBao, ban: calculateSell(7500, data).giaBao };
+  const r20000 = { mua: calculateBuy(20000, data).giaBao, ban: calculateSell(20000, data).giaBao };
+  const r50000 = { mua: calculateBuy(50001, data).giaBao, ban: calculateSell(50001, data).giaBao };
+
+  const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
+  const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+
+  return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr}${dateStr})\n` +
+    (tagLine ? `📌 *${tagLine}*\n\n` : `\n`) +
+    `🟢 Giá mua gốc sàn: 1 AED = **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
+    `🔴 Giá bán gốc sàn: 1 AED = **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
+    `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
+    `🔹 **≤ 1.000 AED (Lãi 200đ):**\n` +
+    `   • Mua: ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
+    `🔹 **1.001 - 5.000 AED (Lãi 150đ):**\n` +
+    `   • Mua: ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
+    `🔹 **5.001 - 10.000 AED (Mua +100đ / Bán -75đ):**\n` +
+    `   • Mua: ${r7500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r7500.ban.toLocaleString('vi-VN')}\n` +
+    `🔹 **10.001 - 50.000 AED (Lãi 60đ):**\n` +
+    `   • Mua: ${r20000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r20000.ban.toLocaleString('vi-VN')}\n` +
+    `🔹 **≥ 50.001 AED (Lãi 40đ):**\n` +
+    `   • Mua: ${r50000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r50000.ban.toLocaleString('vi-VN')}`;
+}
+
 // ==================== BOT MẸ QUẢN LÝ ====================
 async function handleBotMe(msg) {
   if (!msg?.text) return;
@@ -279,7 +371,11 @@ async function handleBotMe(msg) {
 
     if (lowerText === 'tongket' || lowerText === '/tongket') {
       const summary = await getDailySummary();
-      return botMe.sendMessage(chatId, `📊 Đơn: **${summary.count}** | Lãi: **+${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ**`, { parse_mode: 'Markdown' });
+      const msgReply = `📊 **TỔNG KẾT DOANH THU**\n\n` +
+        `📦 Tổng đơn thành công: **${summary.count}** đơn\n` +
+        `💵 Tổng lợi nhuận: **+${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ**\n\n` +
+        `${summary.forecastMsg}`;
+      return botMe.sendMessage(chatId, msgReply, { parse_mode: 'Markdown' });
     }
 
     const muaMatch = text.match(/^(\/)?mua\s+(.+)$/i);
@@ -340,38 +436,8 @@ async function handleBotMe(msg) {
 
     if (lowerText === 'gia' || lowerText === '/gia') {
       const waitingMsg = await botMe.sendMessage(chatId, `⏳ Đang quét giá thông minh trên Binance P2P...`);
-
-      const data = await getCachedStableRates(1000);
-      if (!data) {
-        return botMe.editMessageText("⚠️ Lỗi API Binance!", { chat_id: chatId, message_id: waitingMsg.message_id });
-      }
-
-      // TÍNH GIÁ ĐẦY ĐỦ CẢ 5 MỐC
-      const r500 = { mua: calculateBuy(500, data).giaBao, ban: calculateSell(500, data).giaBao };
-      const r2000 = { mua: calculateBuy(2000, data).giaBao, ban: calculateSell(2000, data).giaBao };
-      const r7500 = { mua: calculateBuy(7500, data).giaBao, ban: calculateSell(7500, data).giaBao };
-      const r20000 = { mua: calculateBuy(20000, data).giaBao, ban: calculateSell(20000, data).giaBao };
-      const r50000 = { mua: calculateBuy(50001, data).giaBao, ban: calculateSell(50001, data).giaBao };
-
-      const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
-      const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-
-      const msgReply = `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr}${dateStr})\n\n` +
-        `🟢 Giá mua gốc sàn: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
-        `🔴 Giá bán gốc sàn: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
-        `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
-        `🔹 **≤ 1.000 AED (Lãi 200đ):**\n` +
-        `   • Mua: ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
-        `🔹 **1.001 - 5.000 AED (Lãi 150đ):**\n` +
-        `   • Mua: ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
-        `🔹 **5.001 - 10.000 AED (Mua +100đ / Bán -75đ):**\n` +
-        `   • Mua: ${r7500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r7500.ban.toLocaleString('vi-VN')}\n` +
-        `🔹 **10.001 - 50.000 AED (Lãi 60đ):**\n` +
-        `   • Mua: ${r20000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r20000.ban.toLocaleString('vi-VN')}\n` +
-        `🔹 **≥ 50.001 AED (Lãi 40đ):**\n` +
-        `   • Mua: ${r50000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r50000.ban.toLocaleString('vi-VN')}`;
-
-      return botMe.editMessageText(msgReply, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
+      const report = await buildPriceReport("Báo cáo theo yêu cầu");
+      return botMe.editMessageText(report, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
 
   } catch (err) {
@@ -574,6 +640,7 @@ cron.schedule('59 23 * * *', async () => {
     const msgSummary = `🌙 **TỔNG KẾT DOANH THU CUỐI NGÀY (${todayStr})**\n\n` +
       `📦 Tổng số đơn hoàn thành: **${summary.count}** đơn\n` +
       `💵 Tổng lợi nhuận thu về: **+${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ**\n\n` +
+      `${summary.forecastMsg}\n\n` +
       `✨ *Chúc bạn nghỉ ngơi vui vẻ!*`;
 
     await botMe.sendMessage(ADMIN_TELEGRAM_ID, msgSummary, { parse_mode: 'Markdown' });
@@ -584,6 +651,34 @@ cron.schedule('59 23 * * *', async () => {
 }, {
   timezone: "Asia/Ho_Chi_Minh"
 });
+
+// ==================== TỰ ĐỘNG QUÉT & BÁO GIÁ CÁC KHUNG GIỜ VÀNG ====================
+cron.schedule('0 10 * * *', async () => {
+  try {
+    const report = await buildPriceReport("⏰ BÁO CÁO GIỜ VÀNG SÁNG (10:00) - Khung MUA AED cạnh tranh nhất!");
+    await botMe.sendMessage(ADMIN_TELEGRAM_ID, report, { parse_mode: 'Markdown' });
+  } catch (err) {
+    console.error("Lỗi cron 10h:", err.message);
+  }
+}, { timezone: "Asia/Ho_Chi_Minh" });
+
+cron.schedule('0 15 * * *', async () => {
+  try {
+    const report = await buildPriceReport("⏰ BÁO CÁO GIỜ VÀNG CHIỀU (15:00) - Đỉnh thanh khoản giữa ngày!");
+    await botMe.sendMessage(ADMIN_TELEGRAM_ID, report, { parse_mode: 'Markdown' });
+  } catch (err) {
+    console.error("Lỗi cron 15h:", err.message);
+  }
+}, { timezone: "Asia/Ho_Chi_Minh" });
+
+cron.schedule('0 21 * * *', async () => {
+  try {
+    const report = await buildPriceReport("⏰ BÁO CÁO GIỜ VÀNG TỐI (21:00) - Khung BÁN AED / Xả USDT được giá nhất!");
+    await botMe.sendMessage(ADMIN_TELEGRAM_ID, report, { parse_mode: 'Markdown' });
+  } catch (err) {
+    console.error("Lỗi cron 21h:", err.message);
+  }
+}, { timezone: "Asia/Ho_Chi_Minh" });
 
 botMe.on('polling_error', (error) => console.log(`[Bot Mẹ Polling Error]: ${error.code}`));
 if (botCon) botCon.on('polling_error', (error) => console.log(`[Bot Con Polling Error]: ${error.code}`));
