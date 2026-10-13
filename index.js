@@ -108,7 +108,6 @@ async function saveRateHistory(data) {
         giaBanGoc: data.giaBanGoc
       };
       history.push(record);
-      // Giữ lại lịch sử trong 30 ngày gần nhất
       if (history.length > 500) history.shift();
       await fs.writeFile(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8');
     } catch (err) {
@@ -136,7 +135,6 @@ async function getDailySummary() {
       }
     });
 
-    // PHÂN TÍCH XU HƯỚNG DỰ BÁO CHO NGÀY HOM SAU
     let forecastMsg = "";
     try {
       const historyStr = await fs.readFile(HISTORY_FILE, 'utf8');
@@ -256,7 +254,6 @@ async function getCachedStableRates(amountAed = 1000) {
     cachedData = { giaMuaGoc, giaBanGoc, usdtVndPrice: usdtVndBuyPrice, usdtVndSellPrice, usdtAedPrice };
     lastFetchTime = Date.now();
 
-    // TỰ ĐỘNG GHI LỊCH SỬ GIÁ NẾU QUÁ 30 PHÚT
     saveRateHistory(cachedData).catch(() => {});
 
     return cachedData;
@@ -461,12 +458,25 @@ if (botMe) {
       return botMe.answerCallbackQuery(query.id, { text: "Đơn hàng này đã được xử lý trước đó!" });
     }
 
+    // GIỮ NGUYÊN CHI TIẾT ĐƠN HÀNG VÀ BỔ SUNG TRẠNG THÁI
+    const oldMessageText = query.message.text || '';
+
     if (action === 'SUCCESS') {
       await recordTransaction({ id: txId, status: 'SUCCESS' });
-      await botMe.editMessageText(`✅ **ĐÃ XÁC NHẬN CỘNG DOANH THU ĐƠN ${txId}**`, { chat_id: query.message.chat.id, message_id: query.message.message_id, parse_mode: 'Markdown' });
+      const updatedText = `${oldMessageText}\n\n✅ **ĐÃ XÁC NHẬN CỘNG DOANH THU THÀNH CÔNG**`;
+      await botMe.editMessageText(updatedText, {
+        chat_id: query.message.chat.id,
+        message_id: query.message.message_id,
+        parse_mode: 'Markdown'
+      });
     } else if (action === 'CANCEL') {
       await recordTransaction({ id: txId, status: 'CANCELLED' });
-      await botMe.editMessageText(`❌ **ĐÃ HỦY ĐƠN ${txId}**`, { chat_id: query.message.chat.id, message_id: query.message.message_id, parse_mode: 'Markdown' });
+      const updatedText = `${oldMessageText}\n\n❌ **ĐÃ HỦY ĐƠN HÀNG**`;
+      await botMe.editMessageText(updatedText, {
+        chat_id: query.message.chat.id,
+        message_id: query.message.message_id,
+        parse_mode: 'Markdown'
+      });
     }
     await botMe.answerCallbackQuery(query.id);
   });
@@ -538,7 +548,8 @@ async function processBuyQuote(chatId, inputObj) {
   const msgText = `🟢 **MUA ${aedAmount.toLocaleString('vi-VN')} AED**\n\n` +
     `Tỷ giá: **${res.giaBao.toLocaleString('vi-VN')} VNĐ/AED**\n` +
     `👉 **Tổng thanh toán: ${res.totalVnd.toLocaleString('vi-VN')} VNĐ**` + 
-    (isVnd ? `\n\n*(Đã tự động đổi từ ${inputAmount.toLocaleString('vi-VN')} VNĐ)*` : '');
+    (isVnd ? `\n\n*(Đã tự động đổi từ ${inputAmount.toLocaleString('vi-VN')} VNĐ)*` : '') +
+    `\n\n⚠️ *Lưu ý: Tỷ giá có hiệu lực trong 10 phút. Bấm nút dưới để giữ giá và chốt đơn!*`;
   
   const buyKeyboard = {
     reply_markup: {
@@ -566,7 +577,8 @@ async function processSellQuote(chatId, inputObj) {
   const msgText = `🔴 **BÁN ${aedAmount.toLocaleString('vi-VN')} AED**\n\n` +
     `Tỷ giá: **${res.giaBao.toLocaleString('vi-VN')} VNĐ/AED**\n` +
     `👉 **Tổng nhận về: ${res.tongChi.toLocaleString('vi-VN')} VNĐ**` +
-    (isVnd ? `\n\n*(Đã tự động đổi từ ${inputAmount.toLocaleString('vi-VN')} VNĐ)*` : '');
+    (isVnd ? `\n\n*(Đã tự động đổi từ ${inputAmount.toLocaleString('vi-VN')} VNĐ)*` : '') +
+    `\n\n⚠️ *Lưu ý: Tỷ giá thay đổi theo thời gian thực. Bấm nút dưới để giữ giá và chốt đơn ngay!*`;
 
   const sellKeyboard = {
     reply_markup: {
