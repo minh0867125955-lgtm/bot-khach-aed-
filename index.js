@@ -264,16 +264,16 @@ async function getCachedStableRates(amountAed = 1000) {
 
 // 🟢 KHÁCH MUA (Khách trả VNĐ lấy AED)
 function calculateBuy(amount, data) {
-  let profitMargin = 230; // <= 1.000 AED: Lãi 230đ (+10đ)
+  let profitMargin = 220; // <= 1.000 AED: Lãi 220đ (+20đ)
 
   if (amount >= 50001) {
-    profitMargin = 70;    // >= 50.001 AED: Lãi 70đ (+10đ)
+    profitMargin = 60;    // >= 50.001 AED: Lãi 60đ (+20đ)
   } else if (amount > 10000) {
-    profitMargin = 90;    // 10.001 - 50.000 AED: Lãi 90đ (+10đ)
+    profitMargin = 80;    // 10.001 - 50.000 AED: Lãi 80đ (+20đ)
   } else if (amount > 5000) {
-    profitMargin = 130;   // 5.001 - 10.000 AED: Lãi 130đ (+10đ)
+    profitMargin = 120;   // 5.001 - 10.000 AED: Lãi 120đ (+20đ)
   } else if (amount > 1000) {
-    profitMargin = 180;   // 1.001 - 5.000 AED: Lãi 180đ (+10đ)
+    profitMargin = 170;   // 1.001 - 5.000 AED: Lãi 170đ (+20đ)
   }
 
   const baseRate = Math.ceil((data.giaMuaGoc + profitMargin) / 10) * 10;
@@ -285,16 +285,16 @@ function calculateBuy(amount, data) {
 
 // 🔴 KHÁCH BÁN (Khách đưa AED lấy VNĐ)
 function calculateSell(amount, data) {
-  let sellMargin = 230;  // <= 1.000 AED: Trừ 230đ (+10đ)
+  let sellMargin = 220;  // <= 1.000 AED: Trừ 220đ (+20đ)
 
   if (amount >= 50001) {
-    sellMargin = 70;     // >= 50.001 AED: Trừ 70đ (+10đ)
+    sellMargin = 60;     // >= 50.001 AED: Trừ 60đ (+20đ)
   } else if (amount > 10000) {
-    sellMargin = 90;     // 10.001 - 50.000 AED: Trừ 90đ (+10đ)
+    sellMargin = 80;     // 10.001 - 50.000 AED: Trừ 80đ (+20đ)
   } else if (amount > 5000) {
-    sellMargin = 130;    // 5.001 - 10.000 AED: Trừ 130đ (+10đ)
+    sellMargin = 120;    // 5.001 - 10.000 AED: Trừ 120đ (+20đ)
   } else if (amount > 1000) {
-    sellMargin = 180;    // 1.001 - 5.000 AED: Trừ 180đ (+10đ)
+    sellMargin = 170;    // 1.001 - 5.000 AED: Trừ 170đ (+20đ)
   }
 
   let giaBao = Math.floor((data.giaBanGoc - sellMargin) / 10) * 10;
@@ -329,15 +329,15 @@ async function buildPriceReport(tagLine = "") {
     `🟢 Giá mua gốc sàn: 1 AED = **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
     `🔴 Giá bán gốc sàn: 1 AED = **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
     `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
-    `🔹 **≤ 1.000 AED (Lãi 230đ):**\n` +
+    `🔹 **≤ 1.000 AED (Lãi 220đ):**\n` +
     `   • Mua: ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
-    `🔹 **1.001 - 5.000 AED (Lãi 180đ):**\n` +
+    `🔹 **1.001 - 5.000 AED (Lãi 170đ):**\n` +
     `   • Mua: ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
-    `🔹 **5.001 - 10.000 AED (Lãi 130đ):**\n` +
+    `🔹 **5.001 - 10.000 AED (Lãi 120đ):**\n` +
     `   • Mua: ${r7500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r7500.ban.toLocaleString('vi-VN')}\n` +
-    `🔹 **10.001 - 50.000 AED (Lãi 90đ):**\n` +
+    `🔹 **10.001 - 50.000 AED (Lãi 80đ):**\n` +
     `   • Mua: ${r20000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r20000.ban.toLocaleString('vi-VN')}\n` +
-    `🔹 **≥ 50.001 AED (Lãi 70đ):**\n` +
+    `🔹 **≥ 50.001 AED (Lãi 60đ):**\n` +
     `   • Mua: ${r50000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r50000.ban.toLocaleString('vi-VN')}`;
 }
 
