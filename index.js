@@ -264,16 +264,16 @@ async function getCachedStableRates(amountAed = 1000) {
 
 // 🟢 KHÁCH MUA (Khách trả VNĐ lấy AED)
 function calculateBuy(amount, data) {
-  let profitMargin = 220; // <= 1.000 AED: Lãi 220đ (+20đ)
+  let profitMargin = 230; // <= 1.000 AED: Lãi 230đ
 
   if (amount >= 50001) {
-    profitMargin = 60;    // >= 50.001 AED: Lãi 60đ (+20đ)
+    profitMargin = 60;    // >= 50.001 AED: Lãi 60đ (Theo ảnh)
   } else if (amount > 10000) {
-    profitMargin = 80;    // 10.001 - 50.000 AED: Lãi 80đ (+20đ)
+    profitMargin = 80;    // 10.001 - 50.000 AED: Lãi 80đ (Theo ảnh)
   } else if (amount > 5000) {
-    profitMargin = 120;   // 5.001 - 10.000 AED: Lãi 120đ (+20đ)
+    profitMargin = 120;   // 5.001 - 10.000 AED: Lãi 120đ (Theo ảnh)
   } else if (amount > 1000) {
-    profitMargin = 170;   // 1.001 - 5.000 AED: Lãi 170đ (+20đ)
+    profitMargin = 180;   // 1.001 - 5.000 AED: Lãi 180đ
   }
 
   const baseRate = Math.ceil((data.giaMuaGoc + profitMargin) / 10) * 10;
@@ -285,16 +285,16 @@ function calculateBuy(amount, data) {
 
 // 🔴 KHÁCH BÁN (Khách đưa AED lấy VNĐ)
 function calculateSell(amount, data) {
-  let sellMargin = 220;  // <= 1.000 AED: Trừ 220đ (+20đ)
+  let sellMargin = 230;  // <= 1.000 AED: Trừ 230đ
 
   if (amount >= 50001) {
-    sellMargin = 60;     // >= 50.001 AED: Trừ 60đ (+20đ)
+    sellMargin = 60;     // >= 50.001 AED: Trừ 60đ (Theo ảnh)
   } else if (amount > 10000) {
-    sellMargin = 80;     // 10.001 - 50.000 AED: Trừ 80đ (+20đ)
+    sellMargin = 80;     // 10.001 - 50.000 AED: Trừ 80đ (Theo ảnh)
   } else if (amount > 5000) {
-    sellMargin = 120;    // 5.001 - 10.000 AED: Trừ 120đ (+20đ)
+    sellMargin = 120;    // 5.001 - 10.000 AED: Trừ 120đ (Theo ảnh)
   } else if (amount > 1000) {
-    sellMargin = 170;    // 1.001 - 5.000 AED: Trừ 170đ (+20đ)
+    sellMargin = 180;    // 1.001 - 5.000 AED: Trừ 180đ
   }
 
   let giaBao = Math.floor((data.giaBanGoc - sellMargin) / 10) * 10;
@@ -310,7 +310,7 @@ function calculateSell(amount, data) {
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
 
-// HÀM TẠO BÁO CÁO GIÁ ĐẦY ĐỦ 5 MỐC
+// HÀM TẠO BÁO CÁO GIÁ ĐẦY ĐỦ 5 MỐC KÈM GỢI Ý THÔNG MINH
 async function buildPriceReport(tagLine = "") {
   const data = await getCachedStableRates(1000);
   if (!data) return "⚠️ Không thể kết nối API Binance!";
@@ -324,14 +324,29 @@ async function buildPriceReport(tagLine = "") {
   const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
   const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
+  let smartAdvice = "";
+  const giaGoc = data.giaMuaGoc;
+
+  if (giaGoc < 7100) {
+    smartAdvice = `💡 **GỢI Ý CHIẾN LƯỢC:**\n` +
+      `🟢 **AED đang RẺ (dưới 7.100đ):** Cực kỳ thuận lợi để mua vào tích trữ USDT hoặc gom AED số lượng lớn cho khách!`;
+  } else if (giaGoc > 7250) {
+    smartAdvice = `💡 **GỢI Ý CHIẾN LƯỢC:**\n` +
+      `🔴 **AED đang CAO (trên 7.250đ):** Thời điểm vàng để chốt đơn BÁN AED / Xả bớt USDT thu lời đậm!`;
+  } else {
+    smartAdvice = `💡 **GỢI Ý CHIẾN LƯỢC:**\n` +
+      `⚖️ **Thị trường ổn định:** Cân bằng cả 2 chiều Mua & Bán, biên lợi nhuận chạy đều các mốc.`;
+  }
+
   return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr}${dateStr})\n` +
     (tagLine ? `📌 *${tagLine}*\n\n` : `\n`) +
     `🟢 Giá mua gốc sàn: 1 AED = **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
     `🔴 Giá bán gốc sàn: 1 AED = **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
+    `${smartAdvice}\n\n` +
     `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
-    `🔹 **≤ 1.000 AED (Lãi 220đ):**\n` +
+    `🔹 **≤ 1.000 AED (Lãi 230đ):**\n` +
     `   • Mua: ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
-    `🔹 **1.001 - 5.000 AED (Lãi 170đ):**\n` +
+    `🔹 **1.001 - 5.000 AED (Lãi 180đ):**\n` +
     `   • Mua: ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **5.001 - 10.000 AED (Lãi 120đ):**\n` +
     `   • Mua: ${r7500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r7500.ban.toLocaleString('vi-VN')}\n` +
@@ -396,7 +411,7 @@ async function handleBotMe(msg) {
       const msgReply = `🟢 **CHECK GIÁ MUA (BOT MẸ)**\n\n` +
         `• Số lượng: ${aedAmount.toLocaleString('vi-VN')} AED\n` +
         `• Tỷ giá báo: ${res.giaBao.toLocaleString('vi-VN')} VNĐ\n` +
-        `• Tổng thu: ${res.totalVnd.toLocaleString('vi-VN')} VNĐ\n` +
+        `• Tổng thu từ khách: ${res.totalVnd.toLocaleString('vi-VN')} VNĐ\n` +
         `• USDT cần chuẩn bị: ~${res.usdtAedNeeded} USDT\n` +
         `💵 **Lãi dự kiến: +${Math.round(res.totalLoi).toLocaleString('vi-VN')} VNĐ**`;
 
@@ -424,7 +439,7 @@ async function handleBotMe(msg) {
       const msgReply = `🔴 **CHECK GIÁ BÁN (BOT MẸ)**\n\n` +
         `• Số lượng: ${aedAmount.toLocaleString('vi-VN')} AED\n` +
         `• Tỷ giá báo: ${res.giaBao.toLocaleString('vi-VN')} VNĐ\n` +
-        `• Tổng trả: ${res.tongChi.toLocaleString('vi-VN')} VNĐ\n` +
+        `• Cần chuyển trả khách: ${res.tongChi.toLocaleString('vi-VN')} VNĐ\n` +
         `• USDT cần chuẩn bị: ~${res.usdtAedNeeded} USDT\n` +
         `💵 **Lãi dự kiến: +${Math.round(res.totalLoi).toLocaleString('vi-VN')} VNĐ**`;
 
@@ -458,7 +473,6 @@ if (botMe) {
       return botMe.answerCallbackQuery(query.id, { text: "Đơn hàng này đã được xử lý trước đó!" });
     }
 
-    // GIỮ NGUYÊN CHI TIẾT ĐƠN HÀNG VÀ BỔ SUNG TRẠNG THÁI
     const oldMessageText = query.message.text || '';
 
     if (action === 'SUCCESS') {
@@ -549,14 +563,21 @@ async function processBuyQuote(chatId, inputObj) {
     `Tỷ giá: **${res.giaBao.toLocaleString('vi-VN')} VNĐ/AED**\n` +
     `👉 **Tổng thanh toán: ${res.totalVnd.toLocaleString('vi-VN')} VNĐ**` + 
     (isVnd ? `\n\n*(Đã tự động đổi từ ${inputAmount.toLocaleString('vi-VN')} VNĐ)*` : '') +
-    `\n\n⚠️ *Lưu ý: Tỷ giá có hiệu lực trong 10 phút. Bấm nút dưới để giữ giá và chốt đơn!*`;
+    `\n\n⚠️ *Lưu ý: Báo giá tự động hủy sau 30 phút. Vui lòng bấm chốt đơn ngay!*`;
   
   const buyKeyboard = {
     reply_markup: {
       inline_keyboard: [[{ text: "💬 Chốt Đơn Qua WhatsApp", callback_data: `CHOT_MUA_${aedAmount}_${res.giaBao}_${res.totalVnd}_${res.totalLoi}_${res.usdtAedNeeded}` }]]
     }
   };
-  return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown', ...buyKeyboard });
+  
+  const sentMsg = await botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown', ...buyKeyboard });
+
+  setTimeout(async () => {
+    try {
+      await botCon.deleteMessage(chatId, sentMsg.message_id);
+    } catch (e) {}
+  }, 30 * 60 * 1000);
 }
 
 async function processSellQuote(chatId, inputObj) {
@@ -578,14 +599,21 @@ async function processSellQuote(chatId, inputObj) {
     `Tỷ giá: **${res.giaBao.toLocaleString('vi-VN')} VNĐ/AED**\n` +
     `👉 **Tổng nhận về: ${res.tongChi.toLocaleString('vi-VN')} VNĐ**` +
     (isVnd ? `\n\n*(Đã tự động đổi từ ${inputAmount.toLocaleString('vi-VN')} VNĐ)*` : '') +
-    `\n\n⚠️ *Lưu ý: Tỷ giá thay đổi theo thời gian thực. Bấm nút dưới để giữ giá và chốt đơn ngay!*`;
+    `\n\n⚠️ *Lưu ý: Báo giá tự động hủy sau 30 phút. Vui lòng bấm chốt đơn ngay!*`;
 
   const sellKeyboard = {
     reply_markup: {
       inline_keyboard: [[{ text: "💬 Chốt Đơn Qua WhatsApp", callback_data: `CHOT_BAN_${aedAmount}_${res.giaBao}_${res.tongChi}_${res.totalLoi}_${res.usdtAedNeeded}` }]]
     }
   };
-  return botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown', ...sellKeyboard });
+  
+  const sentMsg = await botCon.sendMessage(chatId, msgText, { parse_mode: 'Markdown', ...sellKeyboard });
+
+  setTimeout(async () => {
+    try {
+      await botCon.deleteMessage(chatId, sentMsg.message_id);
+    } catch (e) {}
+  }, 30 * 60 * 1000);
 }
 
 if (botCon) {
@@ -625,7 +653,9 @@ if (botCon) {
       await recordTransaction({ id: txId, date: todayStr, type: actionType, amount, profit, status: 'PENDING', userId });
 
       try {
-        const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n👤 ${userName}\n📌 ${actionType} ${amount} AED\n• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n• USDT: \`${usdtNeeded}\``;
+        const moneyLabel = actionType === 'BAN' ? '• Cần chuyển trả khách' : '• Cần thu từ khách';
+        const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n👤 ${userName}\n📌 ${actionType}${amount.toLocaleString('vi-VN')} AED\n${moneyLabel}: **${totalMoney.toLocaleString('vi-VN')} VNĐ**\n• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n• USDT: \`${usdtNeeded}\``;
+        
         const adminKeyboard = { reply_markup: { inline_keyboard: [[{ text: "✅ Hoàn Thành", callback_data: `SUCCESS_${txId}` }, { text: "❌ Hủy", callback_data: `CANCEL_${txId}` }]] } };
         await botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
       } catch (err) {
@@ -656,7 +686,6 @@ cron.schedule('59 23 * * *', async () => {
       `✨ *Chúc bạn nghỉ ngơi vui vẻ!*`;
 
     await botMe.sendMessage(ADMIN_TELEGRAM_ID, msgSummary, { parse_mode: 'Markdown' });
-    console.log(`[CRONJOB] Đã gửi báo cáo tổng kết ngày ${todayStr} thành công.`);
   } catch (err) {
     console.error("Lỗi gửi báo cáo tự động cuối ngày:", err.message);
   }
