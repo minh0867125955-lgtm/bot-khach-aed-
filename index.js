@@ -338,22 +338,22 @@ async function buildPriceReport(tagLine = "") {
       `⚖️ **Thị trường ổn định:** Cân bằng cả 2 chiều Mua & Bán, biên lợi nhuận chạy đều các mốc.`;
   }
 
-  return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr}${dateStr})\n` +
+  return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr} ${dateStr})\n` +
     (tagLine ? `📌 *${tagLine}*\n\n` : `\n`) +
     `🟢 Giá mua gốc sàn: 1 AED = **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
     `🔴 Giá bán gốc sàn: 1 AED = **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
     `${smartAdvice}\n\n` +
     `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
     `🔹 **≤ 1.000 AED (Lãi 230đ):**\n` +
-    `   • Mua: ${r500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
+    `   • Mua: ${r500.mua.toLocaleString('vi-VN')} | Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **1.001 - 5.000 AED (Lãi 180đ):**\n` +
-    `   • Mua: ${r2000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
+    `   • Mua: ${r2000.mua.toLocaleString('vi-VN')} | Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **5.001 - 10.000 AED (Lãi 120đ):**\n` +
-    `   • Mua: ${r7500.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r7500.ban.toLocaleString('vi-VN')}\n` +
+    `   • Mua: ${r7500.mua.toLocaleString('vi-VN')} | Bán: ${r7500.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **10.001 - 50.000 AED (Lãi 80đ):**\n` +
-    `   • Mua: ${r20000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r20000.ban.toLocaleString('vi-VN')}\n` +
+    `   • Mua: ${r20000.mua.toLocaleString('vi-VN')} | Bán: ${r20000.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **≥ 50.001 AED (Lãi 60đ):**\n` +
-    `   • Mua: ${r50000.mua.toLocaleString('vi-VN')} \vert{} Bán: ${r50000.ban.toLocaleString('vi-VN')}`;
+    `   • Mua: ${r50000.mua.toLocaleString('vi-VN')} | Bán: ${r50000.ban.toLocaleString('vi-VN')}`;
 }
 
 // ==================== BOT MẸ QUẢN LÝ ====================
@@ -654,7 +654,7 @@ if (botCon) {
 
       try {
         const moneyLabel = actionType === 'BAN' ? '• Cần chuyển trả khách' : '• Cần thu từ khách';
-        const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n👤 ${userName}\n📌 ${actionType}${amount.toLocaleString('vi-VN')} AED\n${moneyLabel}: **${totalMoney.toLocaleString('vi-VN')} VNĐ**\n• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n• USDT: \`${usdtNeeded}\``;
+        const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n👤 ${userName}\n📌 ${actionType} ${amount.toLocaleString('vi-VN')} AED\n${moneyLabel}: **${totalMoney.toLocaleString('vi-VN')} VNĐ**\n• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n• USDT: \`${usdtNeeded}\``;
         
         const adminKeyboard = { reply_markup: { inline_keyboard: [[{ text: "✅ Hoàn Thành", callback_data: `SUCCESS_${txId}` }, { text: "❌ Hủy", callback_data: `CANCEL_${txId}` }]] } };
         await botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
@@ -662,7 +662,7 @@ if (botCon) {
         console.error("❌ Admin chưa /start Bot Mẹ:", err.message);
       }
 
-      const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn [${txId}] ${actionType}${amount} AED.`);
+      const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn [${txId}] ${actionType} ${amount} AED.`);
       const finalWsUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${wsText}`;
 
       return botCon.sendMessage(chatId, `✅ Mã đơn: \`${txId}\``, {
