@@ -44,13 +44,17 @@ let cachedData = null;
 let lastFetchTime = 0;
 const CACHE_DURATION = 20 * 1000;
 
+// ================= CẤU HÌNH CỐ ĐỊNH & CẢNH BÁO =================
+const FIXED_USDT_AED_BUY = 3.7;  
+const FIXED_USDT_AED_SELL = 3.6; 
+const PRICE_ALERT_THRESHOLD = 0.05; 
+// ==============================================================
+
 async function getStoredUsers() {
   try {
     const data = await fs.readFile(USER_FILE, 'utf8');
     return JSON.parse(data);
-  } catch (err) {
-    return [];
-  }
+  } catch (err) { return []; }
 }
 
 async function saveNewUser(chatId) {
@@ -61,9 +65,7 @@ async function saveNewUser(chatId) {
         users.push(chatId);
         await fs.writeFile(USER_FILE, JSON.stringify(users, null, 2), 'utf8');
       }
-    } catch (err) {
-      console.error("Lỗi lưu user:", err.message);
-    }
+    } catch (err) {}
   });
 }
 
@@ -71,9 +73,7 @@ async function getStoredTransactions() {
   try {
     const data = await fs.readFile(TX_FILE, 'utf8');
     return JSON.parse(data);
-  } catch (err) {
-    return [];
-  }
+  } catch (err) { return []; }
 }
 
 async function recordTransaction(txData) {
@@ -87,9 +87,7 @@ async function recordTransaction(txData) {
         txs.push({ ...txData, createdAt: new Date().toISOString() });
       }
       await fs.writeFile(TX_FILE, JSON.stringify(txs, null, 2), 'utf8');
-    } catch (err) {
-      console.error("Lỗi ghi đơn hàng:", err.message);
-    }
+    } catch (err) {}
   });
 }
 
@@ -98,18 +96,15 @@ async function saveRateHistory(data) {
     try {
       const historyStr = await fs.readFile(HISTORY_FILE, 'utf8');
       const history = JSON.parse(historyStr);
-      const record = {
+      history.push({
         timestamp: new Date().toISOString(),
         date: new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
         giaMuaGoc: data.giaMuaGoc,
         giaBanGoc: data.giaBanGoc
-      };
-      history.push(record);
+      });
       if (history.length > 500) history.shift();
       await fs.writeFile(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8');
-    } catch (err) {
-      console.error("Lỗi lưu lịch sử tỷ giá:", err.message);
-    }
+    } catch (err) {}
   });
 }
 
@@ -119,6 +114,8 @@ async function getDailySummary() {
     const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
     let count = 0;
     let totalProfit = 0;
+    let totalBuyAed = 0;   
+    let totalSellAed = 0;  
 
     txs.forEach(tx => {
       const txDateStr = tx.createdAt 
@@ -128,37 +125,27 @@ async function getDailySummary() {
       if (txDateStr === todayStr && tx.status === 'SUCCESS') {
         count++;
         totalProfit += (tx.profit || 0);
+        if (tx.type === 'MUA') totalBuyAed += (tx.amount || 0);
+        else if (tx.type === 'BAN') totalSellAed += (tx.amount || 0);
       }
     });
 
-    let forecastMsg = "";
-    try {
-      const historyStr = await fs.readFile(HISTORY_FILE, 'utf8');
-      const history = JSON.parse(historyStr);
-      const todayRecords = history.filter(h => h.date === todayStr);
+    let strategyAdvice = "";
+    const netFlow = totalBuyAed - totalSellAed; 
 
-      if (todayRecords.length >= 2) {
-        const firstRec = todayRecords[0];
-        const lastRec = todayRecords[todayRecords.length - 1];
-        const diffBan = lastRec.giaBanGoc - firstRec.giaBanGoc;
-
-        if (diffBan > 10) {
-          forecastMsg = `📈 **DỰ BÁO XU HƯỚNG NGÀY MAI:**\nTỷ giá BÁN AED có xu hướng **TĂNG (+${diffBan}đ)**. Ưu tiên chốt đơn BÁN AED lớn!`;
-        } else if (diffBan < -10) {
-          forecastMsg = `📉 **DỰ BÁO XU HƯỚNG NGÀY MAI:**\nTỷ giá BÁN AED có xu hướng **GIẢM (${diffBan}đ)**. Kiên nhẫn tích trữ vốn.`;
-        } else {
-          forecastMsg = `📊 **DỰ BÁO XU HƯỚNG:** Tỷ giá P2P tương đối **ỔN ĐỊNH**.`;
-        }
-      } else {
-        forecastMsg = `🔮 **DỰ BÁO XU HƯỚNG:** Đang tích lũy dữ liệu.`;
-      }
-    } catch (e) {
-      forecastMsg = `🔮 **DỰ BÁO XU HƯỚNG:** Chưa đủ dữ liệu.`;
+    if (netFlow > 5000) {
+      strategyAdvice = `💡 **GỢI Ý CHIẾN LƯỢC:** Khách **MUA AED nhiều hơn** (Thiếu hụt ~${netFlow.toLocaleString('vi-VN')} AED).\n` +
+                       `👉 *Gợi ý: Lên sàn P2P dùng **VNĐ để gom thêm USDT** (hoặc dùng AED mua USDT) nhằm bổ sung thanh khoản!*`;
+    } else if (netFlow < -5000) {
+      strategyAdvice = `💡 **GỢI Ý CHIẾN LƯỢC:** Khách **BÁN AED nhiều hơn** (Dư thừa ~${Math.abs(netFlow).toLocaleString('vi-VN')} AED).\n` +
+                       `👉 *Gợi ý: Lên sàn P2P **bán bớt USDT/AED lấy VNĐ** về để thu hồi vốn và tối ưu dòng tiền!*`;
+    } else {
+      strategyAdvice = `💡 **GỢI Ý CHIẾN LƯỢC:** Dòng tiền giao dịch cân bằng giữa mua và bán. Tiếp tục duy trì tỷ giá hiện tại.`;
     }
 
-    return { count, totalProfit, forecastMsg };
+    return { count, totalProfit, totalBuyAed, totalSellAed, strategyAdvice };
   } catch (err) {
-    return { count: 0, totalProfit: 0, forecastMsg: "" };
+    return { count: 0, totalProfit: 0, totalBuyAed: 0, totalSellAed: 0, strategyAdvice: "" };
   }
 }
 
@@ -172,121 +159,119 @@ function parseInputAmount(text) {
     const num = parseFloat(clean.replace('k', ''));
     return isNaN(num) ? null : { amount: num * 1000, isVnd: false };
   }
-  
   if (clean.endsWith('tr') || clean.endsWith('m') || clean.includes('trieu') || clean.includes('triệu')) {
     const num = parseFloat(clean.replace('tr', '').replace('m', '').replace('trieu', '').replace('triệu', '').trim());
     return isNaN(num) ? null : { amount: num * 1000000, isVnd: true };
   }
-  
   const num = parseFloat(clean);
   if (isNaN(num) || num <= 0) return null;
-
-  const isVnd = num >= 100000;
-  return { amount: num, isVnd };
+  return { amount: num, isVnd: num >= 100000 };
 }
 
 async function getBinanceP2PData(fiat, tradeType, transAmount = null) {
   try {
-    const payload = {
-      fiat,
-      page: 1,
-      rows: 5,
-      tradeType,
-      asset: 'USDT',
-      countries: [],
-      payTypes: ["BANK"]
-    };
+    const payload = { fiat, page: 1, rows: 10, tradeType, asset: 'USDT', countries: [], payTypes: ["BANK"] };
     if (transAmount && transAmount > 0) payload.transAmount = Math.round(transAmount).toString();
-
-    const response = await axios.post(
-      'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search',
-      payload,
-      { timeout: 6000 }
-    );
+    const response = await axios.post('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', payload, { timeout: 6000 });
     return response.data?.data || [];
-  } catch (error) {
-    return [];
-  }
+  } catch (error) { return []; }
 }
 
-function getSmartMerchantAndPrice(list) {
+function getSmartMerchantAndPrice(list, targetVndAmount = null) {
   if (!list || list.length === 0) return { price: 0, nickName: 'Không rõ' };
-  const validAdvs = list.filter(item => item?.advertiser?.monthOrderFinishRate >= 0.85);
+
+  const validAdvs = list.filter(item => {
+    const isGoodRate = (item?.advertiser?.monthOrderFinishRate || 0) >= 0.85;
+    
+    if (targetVndAmount && item?.adv) {
+      const minLimit = parseFloat(item.adv.minSingleTransAmount || 0);
+      const maxLimit = parseFloat(item.adv.maxSingleTransAmount || 0);
+      const fitsLimit = targetVndAmount >= minLimit && targetVndAmount <= maxLimit;
+      return isGoodRate && fitsLimit;
+    }
+
+    return isGoodRate;
+  });
+
   const targetList = validAdvs.length > 0 ? validAdvs : list;
   const topItem = targetList[0];
+
   return {
     price: parseFloat(topItem?.adv?.price || 0),
-    nickName: topItem?.advertiser?.nickName || 'Binance Merchant'
+    nickName: topItem?.advertiser?.nickName || 'Binance Merchant',
+    minLimit: parseFloat(topItem?.adv?.minSingleTransAmount || 0),
+    maxLimit: parseFloat(topItem?.adv?.maxSingleTransAmount || 0)
   };
 }
 
-// LẤY TỶ GIÁ VÀ TỰ ĐỘNG QUÉT TÊN THƯƠNG NHÂN TỪ SÀN P2P
 async function getCachedStableRates(amountAed = 1000) {
   const now = Date.now();
   if (cachedData && (now - lastFetchTime < CACHE_DURATION)) return cachedData;
 
   try {
     const estimatedVnd = amountAed * 7000; 
-    const [vndSellList, aedSellList, vndBuyList] = await Promise.all([
+    const [vndSellList, vndBuyList] = await Promise.all([
       getBinanceP2PData('VND', 'BUY', estimatedVnd),
-      getBinanceP2PData('AED', 'SELL', amountAed), 
       getBinanceP2PData('VND', 'SELL', estimatedVnd)
     ]);
 
-    if (!vndSellList.length || !aedSellList.length || !vndBuyList.length) return cachedData || null;
+    if (!vndSellList.length || !vndBuyList.length) return cachedData || null;
 
-    const vndBuyInfo = getSmartMerchantAndPrice(vndSellList);  
-    const vndSellInfo = getSmartMerchantAndPrice(vndBuyList); 
-    const aedSellInfo = getSmartMerchantAndPrice(aedSellList); 
+    const vndBuyInfo = getSmartMerchantAndPrice(vndSellList, estimatedVnd);  
+    const vndSellInfo = getSmartMerchantAndPrice(vndBuyList, estimatedVnd); 
 
-    if (!vndBuyInfo.price || !vndSellInfo.price || !aedSellInfo.price) return cachedData || null;
+    if (!vndBuyInfo.price || !vndSellInfo.price) return cachedData || null;
 
-    const giaMuaGoc = Math.round(vndBuyInfo.price / aedSellInfo.price);  
-    const giaBanGoc = Math.floor(vndSellInfo.price / aedSellInfo.price); 
+    const giaMuaGoc = Math.round(vndBuyInfo.price / FIXED_USDT_AED_BUY);  
+    const giaBanGoc = Math.floor(vndSellInfo.price / FIXED_USDT_AED_SELL); 
 
     cachedData = { 
-      giaMuaGoc, 
-      giaBanGoc, 
+      giaMuaGoc, giaBanGoc, 
       usdtVndPrice: vndBuyInfo.price, 
       usdtVndSellPrice: vndSellInfo.price, 
-      usdtAedPrice: aedSellInfo.price,
+      usdtAedPriceBuy: FIXED_USDT_AED_BUY,
+      usdtAedPriceSell: FIXED_USDT_AED_SELL,
       merchantVnd: vndBuyInfo.nickName,
-      merchantAed: aedSellInfo.nickName
+      merchantAed: 'Fixed AED Rate'
     };
     lastFetchTime = Date.now();
 
+    const impliedMarketBuy = vndBuyInfo.price / 3.7;
+    if (Math.abs(impliedMarketBuy - FIXED_USDT_AED_BUY) > PRICE_ALERT_THRESHOLD) {
+      const alertMsg = `⚠️ **CẢNH BÁO LỆCH TỶ GIÁ AED!**\n\n• Tỷ giá cố định: \`${FIXED_USDT_AED_BUY}\`\n• Thị trường P2P biến động vượt ngưỡng.`;
+      try { await botMe.sendMessage(ADMIN_TELEGRAM_ID, alertMsg, { parse_mode: 'Markdown' }); } catch (e) {}
+    }
+
     saveRateHistory(cachedData).catch(() => {});
     return cachedData;
-  } catch (err) {
-    return cachedData || null;
-  }
+  } catch (err) { return cachedData || null; }
 }
 
 function calculateBuy(amount, data) {
-  let profitMargin = 230; 
-  if (amount >= 50001) profitMargin = 60;
-  else if (amount > 10000) profitMargin = 80;
-  else if (amount > 5000) profitMargin = 120;
-  else if (amount > 1000) profitMargin = 180;
+  let profitMargin = 150; 
+  if (amount >= 50001) profitMargin = 50;
+  else if (amount > 10000) profitMargin = 70;
+  else if (amount > 5000) profitMargin = 100;
+  else if (amount > 1000) profitMargin = 120;
 
   const baseRate = Math.ceil((data.giaMuaGoc + profitMargin) / 10) * 10;
-  const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
+  const usdtAedNeeded = (amount / data.usdtAedPriceBuy).toFixed(2);
   const totalVnd = baseRate * amount;
   const totalLoi = profitMargin * amount;
   return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profitMargin };
 }
 
 function calculateSell(amount, data) {
-  let sellMargin = 230; 
-  if (amount >= 50001) sellMargin = 60;
-  else if (amount > 10000) sellMargin = 80;
-  else if (amount > 5000) sellMargin = 120;
-  else if (amount > 1000) sellMargin = 180;
+  let sellMargin = 150; 
+  if (amount >= 50001) sellMargin = 50;
+  else if (amount > 10000) sellMargin = 70;
+  else if (amount > 5000) sellMargin = 100;
+  else if (amount > 1000) sellMargin = 120;
 
   let giaBao = Math.floor((data.giaBanGoc - sellMargin) / 10) * 10;
   if (giaBao >= data.giaBanGoc) giaBao = data.giaBanGoc - 10;
 
-  const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
+  const usdtAedNeeded = (amount / data.usdtAedPriceSell).toFixed(2);
   const tongChi = giaBao * amount;
   const totalLoi = (data.giaBanGoc - giaBao) * amount;
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
@@ -302,50 +287,49 @@ async function buildPriceReport(tagLine = "") {
   const r20000 = { mua: calculateBuy(20000, data).giaBao, ban: calculateSell(20000, data).giaBao };
   const r50000 = { mua: calculateBuy(50001, data).giaBao, ban: calculateSell(50001, data).giaBao };
 
+  const summary = await getDailySummary();
   const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
   const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-  return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)** (${timeStr} ${dateStr})\n` +
+  return `📊 **BÁO CÁO QUẢN TRỊ (CỐ ĐỊNH AED 3.7 / 3.6)** (${timeStr} ${dateStr})\n` +
     (tagLine ? `📌 *${tagLine}*\n\n` : `\n`) +
-    `🟢 Giá mua gốc sàn: 1 AED = **${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ**\n` +
-    `🔴 Giá bán gốc sàn: 1 AED = **${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ**\n\n` +
+    `🟢 USDT/AED Mua: **${FIXED_USDT_AED_BUY}** | Bán: **${FIXED_USDT_AED_SELL}**\n\n` +
     `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
     `🔹 **≤ 1.000 AED:** Mua: ${r500.mua.toLocaleString('vi-VN')} | Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **1.001 - 5.000 AED:** Mua: ${r2000.mua.toLocaleString('vi-VN')} | Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **5.001 - 10.000 AED:** Mua: ${r7500.mua.toLocaleString('vi-VN')} | Bán: ${r7500.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **10.001 - 50.000 AED:** Mua: ${r20000.mua.toLocaleString('vi-VN')} | Bán: ${r20000.ban.toLocaleString('vi-VN')}\n` +
-    `🔹 **≥ 50.001 AED:** Mua: ${r50000.mua.toLocaleString('vi-VN')} | Bán: ${r50000.ban.toLocaleString('vi-VN')}`;
+    `🔹 **≥ 50.001 AED:** Mua: ${r50000.mua.toLocaleString('vi-VN')} | Bán: ${r50000.ban.toLocaleString('vi-VN')}\n\n` +
+    `-----------------------------------\n` +
+    `${summary.strategyAdvice}`;
 }
 
 async function handleBotMe(msg) {
   if (!msg?.text) return;
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
-  const text = msg.text.trim();
+  const text = msg.text.trim().toLowerCase();
 
   if (userId !== ADMIN_TELEGRAM_ID) return botMe.sendMessage(chatId, "⛔ Bạn không có quyền truy cập Bot!");
 
   try {
-    const lowerText = text.toLowerCase();
-    if (lowerText === '/start') {
+    if (text === '/start') {
       return botMe.sendMessage(chatId, `👑 **BOT MẸ QUẢN LÝ**\n\n• \`gia\`\n• \`thongke\`\n• \`tongket\``, { parse_mode: 'Markdown' });
     }
-    if (lowerText === 'thongke' || lowerText === '/thongke') {
+    if (text === 'thongke' || text === '/thongke') {
       const users = await getStoredUsers();
-      return botMe.sendMessage(chatId, `📈 Tổng số khách: **${users.length}** người.`);
+      return botMe.sendMessage(chatId, `📈 Tổng số khách tương tác: **${users.length}** người.`);
     }
-    if (lowerText === 'tongket' || lowerText === '/tongket') {
+    if (text === 'tongket' || text === '/tongket') {
       const summary = await getDailySummary();
-      return botMe.sendMessage(chatId, `📊 **TỔNG KẾT**\n📦 Đơn: ${summary.count}\n💵 Lãi: +${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ\n\n${summary.forecastMsg}`, { parse_mode: 'Markdown' });
+      return botMe.sendMessage(chatId, `📊 **TỔNG KẾT HÔM NAY**\n📦 Đơn thành công: ${summary.count}\n🟢 Khách mua: ${summary.totalBuyAed.toLocaleString('vi-VN')} AED\n🔴 Khách bán: ${summary.totalSellAed.toLocaleString('vi-VN')} AED\n💵 Lãi ròng: +${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ\n\n${summary.strategyAdvice}`, { parse_mode: 'Markdown' });
     }
-    if (lowerText === 'gia' || lowerText === '/gia') {
-      const waitingMsg = await botMe.sendMessage(chatId, `⏳ Đang quét giá thông minh trên Binance P2P...`);
+    if (text === 'gia' || text === '/gia') {
+      const waitingMsg = await botMe.sendMessage(chatId, `⏳ Đang quét giá VND trên Binance P2P...`);
       const report = await buildPriceReport("Báo cáo theo yêu cầu");
       return botMe.editMessageText(report, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
-  } catch (err) {
-    console.error("Lỗi Bot Mẹ:", err.message);
-  }
+  } catch (err) {}
 }
 
 if (botMe) {
@@ -366,15 +350,12 @@ if (botMe) {
     }
 
     const oldMessageText = query.message.text || '';
-
     if (action === 'SUCCESS') {
       await recordTransaction({ id: txId, status: 'SUCCESS' });
-      const updatedText = `${oldMessageText}\n\n✅ **ĐÃ XÁC NHẬN CỘNG DOANH THU THÀNH CÔNG**`;
-      await botMe.editMessageText(updatedText, { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'Markdown' });
+      await botMe.editMessageText(`${oldMessageText}\n\n✅ **ĐÃ XÁC NHẬN CỘNG DOANH THU THÀNH CÔNG**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'Markdown' });
     } else if (action === 'CANCEL') {
       await recordTransaction({ id: txId, status: 'CANCELLED' });
-      const updatedText = `${oldMessageText}\n\n❌ **ĐÃ HỦY ĐƠN HÀNG**`;
-      await botMe.editMessageText(updatedText, { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'Markdown' });
+      await botMe.editMessageText(`${oldMessageText}\n\n❌ **ĐÃ HỦY ĐƠN HÀNG**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'Markdown' });
     }
     await botMe.answerCallbackQuery(query.id);
   });
@@ -413,9 +394,7 @@ async function handleBotCon(msg) {
       const parsed = parseInputAmount(banMatch[2]);
       if (parsed) return processSellQuote(chatId, parsed);
     }
-  } catch (err) {
-    console.error("Lỗi Bot Con:", err.message);
-  }
+  } catch (err) {}
 }
 
 async function processBuyQuote(chatId, inputObj) {
@@ -474,7 +453,6 @@ if (botCon) {
       if (val === '10M') return processBuyQuote(chatId, { amount: 10000000, isVnd: true });
       return processBuyQuote(chatId, { amount: parseFloat(val), isVnd: false });
     }
-
     if (data.startsWith('FAST_BAN_')) {
       const val = data.replace('FAST_BAN_', '');
       if (val === '10M') return processSellQuote(chatId, { amount: 10000000, isVnd: true });
@@ -492,24 +470,15 @@ if (botCon) {
       const profit = parseFloat(parts[5]);
       const usdtNeeded = parts[6] || '0';
 
-      // Lấy dữ liệu tỷ giá mới nhất để lấy tên thương nhân được quét từ sàn
       const currentRates = await getCachedStableRates(amount);
       const merchantVndName = currentRates ? currentRates.merchantVnd : 'Không rõ';
-      const merchantAedName = currentRates ? currentRates.merchantAed : 'Không rõ';
-
       const txId = 'TX-' + crypto.randomBytes(4).toString('hex').toUpperCase();
       const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
       await recordTransaction({ 
-        id: txId, 
-        date: todayStr, 
-        type: actionType, 
-        amount, 
-        profit, 
-        status: 'PENDING', 
-        userId: query.from.id.toString(),
-        merchantVnd: merchantVndName,
-        merchantAed: merchantAedName
+        id: txId, date: todayStr, type: actionType, amount, profit, status: 'PENDING', 
+        userId: query.from.id.toString(), merchantVnd: merchantVndName,
+        merchantAed: `Cố định (${actionType === 'MUA' ? FIXED_USDT_AED_BUY : FIXED_USDT_AED_SELL})`
       });
 
       try {
@@ -520,23 +489,15 @@ if (botCon) {
           `${moneyLabel}: **${totalMoney.toLocaleString('vi-VN')} VNĐ**\n` +
           `• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n` +
           `• USDT cần dùng: \`${usdtNeeded}\`\n` +
-          `🏢 **Thương nhân VND:** ${merchantVndName}\n` +
-          `🏢 **Thương nhân AED:** ${merchantAedName}`;
+          `🏢 **Thương nhân VND:** ${merchantVndName} *(Đã khớp Min/Max)*`;
         
         const adminKeyboard = { 
           reply_markup: { 
-            inline_keyboard: [
-              [
-                { text: "✅ Hoàn Thành", callback_data: `SUCCESS_${txId}` }, 
-                { text: "❌ Hủy", callback_data: `CANCEL_${txId}` }
-              ]
-            ] 
+            inline_keyboard: [[{ text: "✅ Hoàn Thành", callback_data: `SUCCESS_${txId}` }, { text: "❌ Hủy", callback_data: `CANCEL_${txId}` }]] 
           } 
         };
         await botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
-      } catch (err) {
-        console.error("❌ Lỗi gửi thông báo admin:", err.message);
-      }
+      } catch (err) {}
 
       const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn [${txId}] ${actionType} ${amount} AED.`);
       const finalWsUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${wsText}`;
@@ -549,40 +510,32 @@ if (botCon) {
   });
 }
 
+// CRON BÁO CÁO GIỜ VÀNG & TỔNG KẾT CUỐI NGÀY
+cron.schedule('0 10,15,21 * * *', async () => {
+  try {
+    const report = await buildPriceReport("Báo cáo Giờ Vàng tự động");
+    await botMe.sendMessage(ADMIN_TELEGRAM_ID, report, { parse_mode: 'Markdown' });
+  } catch (err) {}
+}, { timezone: "Asia/Ho_Chi_Minh" });
+
 cron.schedule('59 23 * * *', async () => {
   try {
     const summary = await getDailySummary();
     const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-    const msgSummary = `🌙 **TỔNG KẾT CUỐI NGÀY (${todayStr})**\n📦 Tổng đơn: ${summary.count}\n💵 Lãi: +${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ\n\n${summary.forecastMsg}`;
+    const msgSummary = `🌙 **TỔNG KẾT CUỐI NGÀY (${todayStr})**\n` +
+      `📦 Tổng đơn thành công: ${summary.count}\n` +
+      `🟢 Khách mua: ${summary.totalBuyAed.toLocaleString('vi-VN')} AED\n` +
+      `🔴 Khách bán: ${summary.totalSellAed.toLocaleString('vi-VN')} AED\n` +
+      `💵 Tổng lãi ròng: +${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ\n\n` +
+      `${summary.strategyAdvice}`;
     await botMe.sendMessage(ADMIN_TELEGRAM_ID, msgSummary, { parse_mode: 'Markdown' });
   } catch (err) {}
 }, { timezone: "Asia/Ho_Chi_Minh" });
 
-cron.schedule('0 10 * * *', async () => {
-  try {
-    const report = await buildPriceReport("⏰ GIỜ VÀNG SÁNG (10:00)");
-    await botMe.sendMessage(ADMIN_TELEGRAM_ID, report, { parse_mode: 'Markdown' });
-  } catch (err) {}
-}, { timezone: "Asia/Ho_Chi_Minh" });
-
-cron.schedule('0 15 * * *', async () => {
-  try {
-    const report = await buildPriceReport("⏰ GIỜ VÀNG CHIỀU (15:00)");
-    await botMe.sendMessage(ADMIN_TELEGRAM_ID, report, { parse_mode: 'Markdown' });
-  } catch (err) {}
-}, { timezone: "Asia/Ho_Chi_Minh" });
-
-cron.schedule('0 21 * * *', async () => {
-  try {
-    const report = await buildPriceReport("⏰ GIỜ VÀNG TỐI (21:00)");
-    await botMe.sendMessage(ADMIN_TELEGRAM_ID, report, { parse_mode: 'Markdown' });
-  } catch (err) {}
-}, { timezone: "Asia/Ho_Chi_Minh" });
-
-botMe.on('polling_error', (error) => console.log(`[Bot Mẹ Polling Error]: ${error.code}`));
-if (botCon) botCon.on('polling_error', (error) => console.log(`[Bot Con Polling Error]: ${error.code}`));
+botMe.on('polling_error', (error) => {});
+if (botCon) botCon.on('polling_error', (error) => {});
 
 botMe.on('message', handleBotMe);
 if (botCon) botCon.on('message', handleBotCon);
 
-console.log("🚀 Server đã khởi chạy thành công!");
+console.log("🚀 Hệ thống P2P Telegram Bot đã sẵn sàng vận hành ổn định!");
