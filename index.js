@@ -95,7 +95,6 @@ async function recordTransaction(txData) {
   });
 }
 
-// LƯU LỊCH SỬ TỶ GIÁ ĐỂ DỰ BÁO XU HƯỚNG
 async function saveRateHistory(data) {
   return fileMutex.runExclusive(async () => {
     try {
@@ -116,7 +115,6 @@ async function saveRateHistory(data) {
   });
 }
 
-// BÁO CÁO DOANH THU & DỰ BÁO TỔNG HỢP
 async function getDailySummary() {
   try {
     const txs = await getStoredTransactions();
@@ -227,7 +225,6 @@ function getSmartPrice(list) {
   return parseFloat(targetList[0]?.adv?.price || 0);
 }
 
-// LẤY TỶ GIÁ THỰC TẾ TRÊN BINANCE P2P
 async function getCachedStableRates(amountAed = 1000) {
   const now = Date.now();
   if (cachedData && (now - lastFetchTime < CACHE_DURATION)) return cachedData;
@@ -262,16 +259,16 @@ async function getCachedStableRates(amountAed = 1000) {
   }
 }
 
-// 🟢 KHÁCH MUA (Khách trả VNĐ lấy AED)
+// 🟢 KHÁCH MUA (Khách trả VNĐ lấy AED) -> PHẢI CỘNG LÃI VÀO GIÁ GỐC MUA
 function calculateBuy(amount, data) {
   let profitMargin = 230; // <= 1.000 AED: Lãi 230đ
 
   if (amount >= 50001) {
-    profitMargin = 60;    // >= 50.001 AED: Lãi 60đ (Theo ảnh)
+    profitMargin = 60;    // >= 50.001 AED: Lãi 60đ
   } else if (amount > 10000) {
-    profitMargin = 80;    // 10.001 - 50.000 AED: Lãi 80đ (Theo ảnh)
+    profitMargin = 80;    // 10.001 - 50.000 AED: Lãi 80đ
   } else if (amount > 5000) {
-    profitMargin = 120;   // 5.001 - 10.000 AED: Lãi 120đ (Theo ảnh)
+    profitMargin = 120;   // 5.001 - 10.000 AED: Lãi 120đ
   } else if (amount > 1000) {
     profitMargin = 180;   // 1.001 - 5.000 AED: Lãi 180đ
   }
@@ -283,16 +280,16 @@ function calculateBuy(amount, data) {
   return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profitMargin };
 }
 
-// 🔴 KHÁCH BÁN (Khách đưa AED lấy VNĐ)
+// 🔴 KHÁCH BÁN (Khách đưa AED lấy VNĐ) -> PHẢI TRỪ LÃI KHỎI GIÁ GỐC BÁN
 function calculateSell(amount, data) {
   let sellMargin = 230;  // <= 1.000 AED: Trừ 230đ
 
   if (amount >= 50001) {
-    sellMargin = 60;     // >= 50.001 AED: Trừ 60đ (Theo ảnh)
+    sellMargin = 60;     // >= 50.001 AED: Trừ 60đ
   } else if (amount > 10000) {
-    sellMargin = 80;     // 10.001 - 50.000 AED: Trừ 80đ (Theo ảnh)
+    sellMargin = 80;     // 10.001 - 50.000 AED: Trừ 80đ
   } else if (amount > 5000) {
-    sellMargin = 120;    // 5.001 - 10.000 AED: Trừ 120đ (Theo ảnh)
+    sellMargin = 120;    // 5.001 - 10.000 AED: Trừ 120đ
   } else if (amount > 1000) {
     sellMargin = 180;    // 1.001 - 5.000 AED: Trừ 180đ
   }
@@ -310,7 +307,6 @@ function calculateSell(amount, data) {
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
 
-// HÀM TẠO BÁO CÁO GIÁ ĐẦY ĐỦ 5 MỐC KÈM GỢI Ý THÔNG MINH
 async function buildPriceReport(tagLine = "") {
   const data = await getCachedStableRates(1000);
   if (!data) return "⚠️ Không thể kết nối API Binance!";
@@ -356,7 +352,6 @@ async function buildPriceReport(tagLine = "") {
     `   • Mua: ${r50000.mua.toLocaleString('vi-VN')} | Bán: ${r50000.ban.toLocaleString('vi-VN')}`;
 }
 
-// ==================== BOT MẸ QUẢN LÝ ====================
 async function handleBotMe(msg) {
   if (!msg?.text) return;
   const chatId = msg.chat.id;
@@ -496,7 +491,6 @@ if (botMe) {
   });
 }
 
-// ==================== BOT CON GIAO DIỆN KHÁCH HÀNG ====================
 async function handleBotCon(msg) {
   if (!botCon || !msg?.text) return;
   const chatId = msg.chat.id;
@@ -673,7 +667,6 @@ if (botCon) {
   });
 }
 
-// ==================== TỰ ĐỘNG TỔNG KẾT BÁO CÁO CUỐI NGÀY ====================
 cron.schedule('59 23 * * *', async () => {
   try {
     const summary = await getDailySummary();
@@ -693,7 +686,6 @@ cron.schedule('59 23 * * *', async () => {
   timezone: "Asia/Ho_Chi_Minh"
 });
 
-// ==================== TỰ ĐỘNG QUÉT & BÁO GIÁ CÁC KHUNG GIỜ VÀNG ====================
 cron.schedule('0 10 * * *', async () => {
   try {
     const report = await buildPriceReport("⏰ BÁO CÁO GIỜ VÀNG SÁNG (10:00) - Khung MUA AED cạnh tranh nhất!");
