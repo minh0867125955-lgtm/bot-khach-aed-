@@ -21,11 +21,11 @@ const fileMutex = new NativeMutex();
 
 const TOKEN_ME = process.env.TELEGRAM_BOT_TOKEN_ME || process.env.TELEGRAM_TOKEN;
 const TOKEN_CON = process.env.TELEGRAM_BOT_TOKEN_CON;
-const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '7466244815'; 
+const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || process.env.ADMIN_ID || '7466244815'; 
 const WHATSAPP_PHONE = '84373350255'; 
 
 if (!TOKEN_ME) {
-  console.error("❌ LỖI KHỞI ĐỘNG: Chưa khai báo TELEGRAM_BOT_TOKEN_ME hoặc TELEGRAM_BOT_TOKEN!");
+  console.error("❌ LỖI KHỞI ĐỘNG: Chưa khai báo TELEGRAM_BOT_TOKEN_ME!");
   process.exit(1);
 }
 
@@ -152,6 +152,7 @@ async function getDailySummary() {
   }
 }
 
+// XỬ LÝ SỐ LƯỢNG THÔNG MINH (HỖ TRỢ 'k' ĐỂ HIỂU 2k = 2000)
 function parseInputAmount(text) {
   if (!text) return null;
   let clean = text.toLowerCase().trim();
