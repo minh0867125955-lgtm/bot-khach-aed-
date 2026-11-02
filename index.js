@@ -44,10 +44,9 @@ let cachedData = null;
 let lastFetchTime = 0;
 const CACHE_DURATION = 20 * 1000;
 
-// ================= CẤU HÌNH MỐC GỐC & PHÍ 1.55% =================
-const BASE_BUY_RATE = 3.7;       // Chiều khách Bán AED (Thu AED)
-const BASE_SELL_RATE = 3.6;      // Chiều khách Mua AED (Bán AED)
-const FEE_PERCENT = 0.0155;      // Mức phí / độ lệch 1.55%
+// ================= MỐC GỐC CHO TRƯỢT MỘT CHIỀU =================
+const BASE_BUY_RATE = 3.7;  // Chiều khách Bán AED (Thu AED)[cite: 1, 8, 9]
+const BASE_SELL_RATE = 3.6; // Chiều khách Mua AED (Bán AED)[cite: 1, 8]
 // ===============================================================
 
 async function getStoredUsers() {
@@ -206,7 +205,7 @@ function getSmartMerchantAndPrice(list, targetVndAmount = null) {
   };
 }
 
-// ================= QUÉT VÀ TÍCH HỢP PHÍ 1.55% VÀO TỶ GIÁ TRƯỢT =================
+// ================= QUÉT VÀ TRƯỢT MỘT CHIỀU HẰNG NGÀY =================
 async function getCachedStableRates(amountAed = 1000) {
   const now = Date.now();
   if (cachedData && (now - lastFetchTime < CACHE_DURATION)) return cachedData;
@@ -241,21 +240,17 @@ async function getCachedStableRates(amountAed = 1000) {
       currentSellRate = Math.max(BASE_SELL_RATE, topMarketSell);
     }
 
-    // Áp dụng cộng/trừ 1.55% phí vào tỷ giá quy đổi gốc để bù đắp triệt để chênh lệch kép
-    const adjustedBuyRate = currentBuyRate * (1 - FEE_PERCENT);
-    const adjustedSellRate = currentSellRate * (1 + FEE_PERCENT);
-
-    const giaMuaGoc = Math.round(vndBuyInfo.price / adjustedBuyRate);  
-    const giaBanGoc = Math.floor(vndSellInfo.price / adjustedSellRate); 
+    const giaMuaGoc = Math.round(vndBuyInfo.price / currentBuyRate);  
+    const giaBanGoc = Math.floor(vndSellInfo.price / currentSellRate); 
 
     cachedData = { 
       giaMuaGoc, giaBanGoc, 
       usdtVndPrice: vndBuyInfo.price, 
       usdtVndSellPrice: vndSellInfo.price, 
-      usdtAedPriceBuy: currentBuyRate,
-      usdtAedPriceSell: currentSellRate,
+      usdtAedPriceBuy: currentBuyRate,   // Giá thực tế chiều thu AED
+      usdtAedPriceSell: currentSellRate, // Giá thực tế chiều bán AED (VD: ~3.659)
       merchantVnd: vndBuyInfo.nickName,
-      merchantAed: 'Sliding + 1.55% Fee'
+      merchantAed: 'Sliding One-Way'
     };
     lastFetchTime = Date.now();
 
@@ -272,11 +267,12 @@ function calculateBuy(amount, data) {
   else if (amount > 1000) profitMargin = 120;
 
   const baseRate = Math.ceil((data.giaMuaGoc + profitMargin) / 10) * 10;
-  // Chiều Mua AED: Tính USDT cần dùng đã gộp biên độ phí 1.55%
-  const effectiveSellRate = data.usdtAedPriceSell * (1 + FEE_PERCENT);
-  const usdtAedNeeded = (amount / effectiveSellRate).toFixed(2);
   const totalVnd = baseRate * amount;
   const totalLoi = profitMargin * amount;
+
+  // LẤY TRỰC TIẾP GIÁ SÀN THỰC TẾ CHIỀU BÁN AED ĐỂ TÍNH CHUẨN USDT CẦN DÙNG (VD: 2000 / 3.659 = ~546.60)
+  const usdtAedNeeded = (amount / data.usdtAedPriceSell).toFixed(2);
+
   return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profitMargin };
 }
 
@@ -290,11 +286,12 @@ function calculateSell(amount, data) {
   let giaBao = Math.floor((data.giaBanGoc - sellMargin) / 10) * 10;
   if (giaBao >= data.giaBanGoc) giaBao = data.giaBanGoc - 10;
 
-  // Chiều Bán AED: Tính USDT cần dùng đã gộp biên độ phí 1.55%
-  const effectiveBuyRate = data.usdtAedPriceBuy * (1 - FEE_PERCENT);
-  const usdtAedNeeded = (amount / effectiveBuyRate).toFixed(2);
   const tongChi = giaBao * amount;
   const totalLoi = (data.giaBanGoc - giaBao) * amount;
+
+  // LẤY TRỰC TIẾP GIÁ SÀN THỰC TẾ CHIỀU MUA AED ĐỂ TÍNH CHUẨN USDT
+  const usdtAedNeeded = (amount / data.usdtAedPriceBuy).toFixed(2);
+
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
 
@@ -312,9 +309,9 @@ async function buildPriceReport(tagLine = "") {
   const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
   const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-  return `📊 **BÁO CÁO QUẢN TRỊ (ĐÃ TÍCH HỢP PHÍ 1.55%)** (${timeStr} ${dateStr})\n` +
+  return `📊 **BÁO CÁO QUẢN TRỊ (USDT CHUẨN XÁC THEO SÀN)** (${timeStr} ${dateStr})\n` +
     (tagLine ? `📌 *${tagLine}*\n\n` : `\n`) +
-    `🟢 Tỷ giá trượt: Thu AED **${data.usdtAedPriceBuy}** | Bán AED **${data.usdtAedPriceSell}** *(Đã cộng/trừ 1.55% phí)*\n\n` +
+    `🟢 Tỷ giá trượt: Thu AED **${data.usdtAedPriceBuy}** | Bán AED **${data.usdtAedPriceSell}**\n\n` +
     `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
     `🔹 **≤ 1.000 AED:** Mua: ${r500.mua.toLocaleString('vi-VN')} | Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
     `🔹 **1.001 - 5.000 AED:** Mua: ${r2000.mua.toLocaleString('vi-VN')} | Bán: ${r2000.ban.toLocaleString('vi-VN')}\n` +
@@ -346,7 +343,7 @@ async function handleBotMe(msg) {
       return botMe.sendMessage(chatId, `📊 **TỔNG KẾT HÔM NAY**\n📦 Đơn thành công: ${summary.count}\n🟢 Khách mua: ${summary.totalBuyAed.toLocaleString('vi-VN')} AED\n🔴 Khách bán: ${summary.totalSellAed.toLocaleString('vi-VN')} AED\n💵 Lãi ròng: +${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ\n\n${summary.strategyAdvice}`, { parse_mode: 'Markdown' });
     }
     if (text === 'gia' || text === '/gia') {
-      const waitingMsg = await botMe.sendMessage(chatId, `⏳ Đang quét giá tích hợp phí 1.55% trên Binance P2P...`);
+      const waitingMsg = await botMe.sendMessage(chatId, `⏳ Đang quét giá chuẩn trên Binance P2P...`);
       const report = await buildPriceReport("Báo cáo theo yêu cầu");
       return botMe.editMessageText(report, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
@@ -499,7 +496,7 @@ if (botCon) {
       await recordTransaction({ 
         id: txId, date: todayStr, type: actionType, amount, profit, status: 'PENDING', 
         userId: query.from.id.toString(), merchantVnd: merchantVndName,
-        merchantAed: `Sliding + 1.55% Fee`
+        merchantAed: `Synced Market Rate`
       });
 
       try {
@@ -558,4 +555,4 @@ if (botCon) botCon.on('polling_error', (error) => {});
 botMe.on('message', handleBotMe);
 if (botCon) botCon.on('message', handleBotCon);
 
-console.log("🚀 Hệ thống P2P Telegram Bot đã tích hợp phí 1.55% thành công!");
+console.log("🚀 Hệ thống P2P Telegram Bot đã đồng bộ xong công thức USDT thực tế theo giá sàn!");
