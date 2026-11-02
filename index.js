@@ -2,9 +2,9 @@ const TelegramBot = require('node-telegram-bot-api');
 const cron = require('node-cron');
 const axios = require('axios');
 
-// ================= LẤY TOKEN TỪ BIẾN MÔI TRƯỜNG RAILWAY =================
+// ================= CẤU HÌNH TOKEN VÀ BIẾN MÔI TRƯỜNG =================
 const TOKEN_BOT_CON = process.env.TELEGRAM_TOKEN;
-const ADMIN_TELEGRAM_ID = process.env.ADMIN_ID; // ID Telegram của bạn
+const ADMIN_TELEGRAM_ID = process.env.ADMIN_ID;
 
 if (!TOKEN_BOT_CON) {
   console.error("❌ LỖI: Chưa cấu hình TELEGRAM_TOKEN trong biến môi trường của Railway!");
@@ -13,13 +13,14 @@ if (!TOKEN_BOT_CON) {
 
 const bot = new TelegramBot(TOKEN_BOT_CON, { polling: true });
 
-// ================= HỆ THỐNG BIẾN TOÀN CỤC (MỘT CHIỀU) =================
+// ================= HỆ THỐNG BIẾN TOÀN CỤC & TỶ GIÁ MỘT CHIỀU =================
 const BASE_FIXED_BUY = 3.70;
 const BASE_FIXED_SELL = 3.60;
 
 let FIXED_USDT_AED_BUY = 3.70;
 let FIXED_USDT_AED_SELL = 3.60;
 
+// Dữ liệu thị trường và mốc gốc quy đổi
 let currentMarketData = {
   giaMuaGoc: 7096, // VNĐ
   giaBanGoc: 7083, // VNĐ
@@ -45,7 +46,7 @@ async function getBinanceP2PData(fiat = 'AED', tradeType = 'BUY') {
   }
 }
 
-// ================= CƠ CHẾ TÍNH TOÁN THEO 5 MỐC SỐ LƯỢNG & LÃI MỘT CHIỀU =================
+// ================= CƠ CHẾ TÍNH TOÁN 5 MỐC SỐ LƯỢNG & LÃI MỘT CHIỀU =================
 function calculateBuy(amount, data) {
   let profitMargin = 200; // <= 1.000 AED
   if (amount >= 50001) profitMargin = 60;
@@ -78,7 +79,7 @@ function calculateSell(amount, data) {
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
 
-// ================= CRON JOB: CẬP NHẬT TỶ GIÁ HÀNG TUẦN =================
+// ================= CRON JOB: TỰ ĐỘNG CẬP NHẬT TỶ GIÁ HÀNG TUẦN =================
 cron.schedule('0 0 * * 1', async () => {
   try {
     const aedBuyList = await getBinanceP2PData('AED', 'BUY');
@@ -89,12 +90,13 @@ cron.schedule('0 0 * * 1', async () => {
 
       let messageContent = "";
 
+      // Kiểm tra ngưỡng sụt giá nguy hiểm (<= 3.65)
       if (marketAvgPrice <= (BASE_FIXED_BUY - 0.05)) {
         FIXED_USDT_AED_BUY = BASE_FIXED_BUY;
         FIXED_USDT_AED_SELL = BASE_FIXED_SELL;
 
         messageContent = `🚨 **CẢNH BÁO SỤT GIÁ AED NGUY HIỂM (> 0.05)!**\n\n` +
-          `• Giá thị trường quét được: \`${marketAvgPrice}\` (Giảm qua 3.65)\n` +
+          `• Giá thị trường quét được: \`${marketAvgPrice}\` (Giảm qua ngưỡng 3.65)\n` +
           `• Hệ thống **KHÓA CỨNG** tỷ giá ở mốc gốc: Mua \`${FIXED_USDT_AED_BUY}\` | Bán \`${FIXED_USDT_AED_SELL}\``;
       } else {
         let stepDiff = Math.round((marketAvgPrice - BASE_FIXED_BUY) / 0.1) * 0.1;
@@ -117,15 +119,16 @@ cron.schedule('0 0 * * 1', async () => {
       }
     }
   } catch (err) {
-    console.error("Lỗi cron job:", err);
+    console.error("Lỗi cron job cập nhật tỷ giá:", err);
   }
 }, { timezone: "Asia/Ho_Chi_Minh" });
 
-// ================= GIAO DIỆN TELEGRAM BOT =================
+// ================= XỬ LÝ LỆNH TỪ KHÁCH HÀNG TRÊN TELEGRAM =================
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text ? msg.text.trim() : '';
 
+  // Xử lý lệnh /mua hoặc /buy
   if (text.startsWith('/mua') || text.startsWith('/buy')) {
     const parts = text.split(' ');
     const amount = parseFloat(parts[1]);
@@ -137,13 +140,14 @@ bot.on('message', async (msg) => {
     const result = calculateBuy(amount, currentMarketData);
     const replyText = `🟢 **BÁO GIÁ MUA AED CHO KHÁCH**\n\n` +
       `• Số lượng: \`${amount.toLocaleString()} AED\`\n` +
-      `• Biên độ lãi: \`${result.profitMargin} VNĐ\` (Sàn một chiều)\n` +
+      `• Biên độ lãi áp dụng: \`${result.profitMargin} VNĐ\` (Sàn một chiều)\n` +
       `• Tỷ giá báo khách: \`${result.giaBao.toLocaleString()} VNĐ/AED\`\n` +
       `• Tổng tiền thanh toán: \`≈ ${result.totalVnd.toLocaleString()} VNĐ\``;
 
     return bot.sendMessage(chatId, replyText, { parse_mode: 'Markdown' });
   }
 
+  // Xử lý lệnh /ban hoặc /sell
   if (text.startsWith('/ban') || text.startsWith('/sell')) {
     const parts = text.split(' ');
     const amount = parseFloat(parts[1]);
@@ -155,7 +159,7 @@ bot.on('message', async (msg) => {
     const result = calculateSell(amount, currentMarketData);
     const replyText = `🔴 **BÁO GIÁ BÁN AED CHO KHÁCH**\n\n` +
       `• Số lượng: \`${amount.toLocaleString()} AED\`\n` +
-      `• Biên độ lãi: \`${result.sellMargin} VNĐ\` (Sàn một chiều)\n` +
+      `• Biên độ lãi áp dụng: \`${result.sellMargin} VNĐ\` (Sàn một chiều)\n` +
       `• Tỷ giá thu mua: \`${result.giaBao.toLocaleString()} VNĐ/AED\`\n` +
       `• Tổng tiền chi trả: \`≈ ${result.tongChi.toLocaleString()} VNĐ\``;
 
@@ -163,4 +167,4 @@ bot.on('message', async (msg) => {
   }
 });
 
-console.log("🤖 Bot P2P đã khởi động và hoạt động thành công!");
+console.log("🤖 Bot quản lý P2P AED/VND đã khởi động thành công với đầy đủ tính năng!");
