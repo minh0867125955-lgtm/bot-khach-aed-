@@ -45,8 +45,8 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 20 * 1000;
 
 // ================= MỐC GỐC BAN ĐẦU CHO TRƯỢT MỘT CHIỀU =================
-const BASE_BUY_RATE = 3.7;  // Chiều khách Bán AED (Thu AED)[cite: 1, 8, 9]
-const BASE_SELL_RATE = 3.6; // Chiều khách Mua AED (Bán AED)[cite: 1, 8]
+const BASE_BUY_RATE = 3.7;  // Chiều khách Bán AED (Thu AED)
+const BASE_SELL_RATE = 3.6; // Chiều khách Mua AED (Bán AED)
 // ======================================================================
 
 async function getStoredUsers() {
@@ -224,7 +224,6 @@ async function getCachedStableRates(amountAed = 1000) {
 
     if (!vndBuyInfo.price || !vndSellInfo.price) return cachedData || null;
 
-    // Quét thị trường AED P2P trên Binance để trượt theo 1 chiều hằng ngày
     const aedBuyMarketList = await getBinanceP2PData('AED', 'BUY', amountAed);   // Chiều thu AED (Khách bán)
     const aedSellMarketList = await getBinanceP2PData('AED', 'SELL', amountAed); // Chiều bán AED (Khách mua)
 
@@ -233,13 +232,11 @@ async function getCachedStableRates(amountAed = 1000) {
 
     if (aedBuyMarketList.length > 0) {
       const topMarketBuy = parseFloat(aedBuyMarketList[0]?.adv?.price || BASE_BUY_RATE);
-      // Trượt tăng một chiều, không thấp hơn mốc sàn 3.7
       currentBuyRate = Math.max(BASE_BUY_RATE, topMarketBuy);
     }
 
     if (aedSellMarketList.length > 0) {
       const topMarketSell = parseFloat(aedSellMarketList[0]?.adv?.price || BASE_SELL_RATE);
-      // Trượt tăng một chiều cho chiều bán, không thấp hơn mốc sàn 3.6
       currentSellRate = Math.max(BASE_SELL_RATE, topMarketSell);
     }
 
@@ -253,7 +250,7 @@ async function getCachedStableRates(amountAed = 1000) {
       usdtAedPriceBuy: currentBuyRate,
       usdtAedPriceSell: currentSellRate,
       merchantVnd: vndBuyInfo.nickName,
-      merchantAed: 'One-Way Sliding'
+      merchantAed: 'Sliding One-Way'
     };
     lastFetchTime = Date.now();
 
@@ -287,7 +284,7 @@ function calculateSell(amount, data) {
   let giaBao = Math.floor((data.giaBanGoc - sellMargin) / 10) * 10;
   if (giaBao >= data.giaBanGoc) giaBao = data.giaBanGoc - 10;
 
-  // Khách Bán AED -> Tính USDT cần dùng dựa trên tỷ giá trượt chiều mua (gốc 3.7)[cite: 1, 8, 9]
+  // Khách Bán AED -> Tính USDT cần dùng dựa trên tỷ giá trượt chiều mua (gốc 3.7)
   const usdtAedNeeded = (amount / data.usdtAedPriceBuy).toFixed(2);
   const tongChi = giaBao * amount;
   const totalLoi = (data.giaBanGoc - giaBao) * amount;
@@ -527,7 +524,6 @@ if (botCon) {
   });
 }
 
-// CRON BÁO CÁO GIỜ VÀNG & TỔNG KẾT CUỐI NGÀY
 cron.schedule('0 10,15,21 * * *', async () => {
   try {
     const report = await buildPriceReport("Báo cáo Giờ Vàng tự động");
@@ -555,4 +551,4 @@ if (botCon) botCon.on('polling_error', (error) => {});
 botMe.on('message', handleBotMe);
 if (botCon) botCon.on('message', handleBotCon);
 
-console.log("🚀 Hệ thống P2P Telegram Bot đã bật giá trượt một chiều (Mua 3.6 / Bán 3.7) thành công!");
+console.log("🚀 Hệ thống P2P Telegram Bot đã bật giá trượt một chiều thành công!");
