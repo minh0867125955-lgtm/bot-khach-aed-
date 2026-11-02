@@ -2,22 +2,21 @@ const TelegramBot = require('node-telegram-bot-api');
 const cron = require('node-cron');
 const axios = require('axios');
 
-// ================= THÔNG TIN CẤU HÌNH =================
-const TOKEN_BOT_CON = 'YOUR_CHILD_BOT_TOKEN_HERE';
-const ADMIN_TELEGRAM_ID = 'YOUR_ADMIN_TELEGRAM_ID_HERE'; // Bot Mẹ / ID Admin
+// ================= THÔNG TIN CẤU HÌNH 2 BOT =================
+const TOKEN_BOT_CON = '8944357255:AAHtMV_Oqm4X5HnV4VK_FWikV_Rm4gurF4w';       // Bot khách (@tygia_aed_bot)[cite: 6]
+const TOKEN_BOT_TRACKER = '8939256653:AAGjP7BW1QjsxDGLCNapwgcIkat-SZNM4k0'; // Bot báo cáo (@vnd_aed_tracker_bot)[cite: 6]
+const ADMIN_TELEGRAM_ID = 'YOUR_ADMIN_TELEGRAM_ID_HERE'; // Điền ID Telegram của bạn vào đây
 
 const bot = new TelegramBot(TOKEN_BOT_CON, { polling: true });
+const botTracker = new TelegramBot(TOKEN_BOT_TRACKER, { polling: false }); // Dùng để gửi tin nhắn thông báo về admin
 
 // ================= HỆ THỐNG BIẾN TOÀN CỤC (MỘT CHIỀU) =================
-// Mốc giá gốc cố định sàn
 const BASE_FIXED_BUY = 3.70;
 const BASE_FIXED_SELL = 3.60;
 
-// Trạng thái tỷ giá cố định đang áp dụng
 let FIXED_USDT_AED_BUY = 3.70;
 let FIXED_USDT_AED_SELL = 3.60;
 
-// Giả lập dữ liệu giá gốc sàn P2P hiện tại (Dùng cho hàm tính toán)
 let currentMarketData = {
   giaMuaGoc: 7096, // VNĐ
   giaBanGoc: 7083, // VNĐ
@@ -45,8 +44,7 @@ async function getBinanceP2PData(fiat = 'AED', tradeType = 'BUY') {
 
 // ================= CƠ CHẾ TÍNH TOÁN THEO 5 MỐC SỐ LƯỢNG & LÃI MỘT CHIỀU =================
 function calculateBuy(amount, data) {
-  // 5 mốc biên độ lãi chuẩn (Sàn tối thiểu - Chỉ tăng, không giảm dưới mức này)
-  let profitMargin = 200; // <= 1.000 AED
+  let profitMargin = 200; // <= 1.000 AED (Lãi chuẩn)
   if (amount >= 50001) profitMargin = 60;
   else if (amount > 10000) profitMargin = 80;
   else if (amount > 5000) profitMargin = 120;
@@ -61,8 +59,7 @@ function calculateBuy(amount, data) {
 }
 
 function calculateSell(amount, data) {
-  // 5 mốc biên độ lãi chuẩn (Sàn tối thiểu - Chỉ tăng, không giảm dưới mức này)
-  let sellMargin = 200; // <= 1.000 AED
+  let sellMargin = 200; // <= 1.000 AED (Lãi chuẩn)
   if (amount >= 50001) sellMargin = 60;
   else if (amount > 10000) sellMargin = 80;
   else if (amount > 5000) sellMargin = 120;
@@ -91,7 +88,6 @@ cron.schedule('0 0 * * 1', async () => {
 
       // Kiểm tra nếu thị trường sụt giảm sâu vượt ngưỡng 0.05 (<= 3.65)
       if (marketAvgPrice <= (BASE_FIXED_BUY - 0.05)) {
-        // Khóa cứng ở mốc gốc, tuyệt đối không tụt sâu hơn
         FIXED_USDT_AED_BUY = BASE_FIXED_BUY;
         FIXED_USDT_AED_SELL = BASE_FIXED_SELL;
 
@@ -99,7 +95,6 @@ cron.schedule('0 0 * * 1', async () => {
           `• Giá thị trường quét được: \`${marketAvgPrice}\` (Đã giảm qua ngưỡng an toàn 3.65)[cite: 1]\n` +
           `• Hệ thống **KHÓA CỨNG** tỷ giá ở mốc gốc: Mua \`${FIXED_USDT_AED_BUY}\` | Bán \`${FIXED_USDT_AED_SELL}\` để bảo vệ vốn![cite: 1]`;
       } else {
-        // Đồng bộ tăng/giảm theo bước 0.1, nhưng không được trượt thấp hơn mốc gốc
         let stepDiff = Math.round((marketAvgPrice - BASE_FIXED_BUY) / 0.1) * 0.1;
         if (stepDiff < 0) stepDiff = 0; // Chặn chiều giảm qua giá gốc
 
@@ -113,12 +108,11 @@ cron.schedule('0 0 * * 1', async () => {
           `• Trạng thái: Cùng tăng/giảm đồng bộ 0.1 (Đã khóa sàn tối thiểu 3.70/3.60)`;
       }
 
-      // Cập nhật lại vào biến dữ liệu chung
       currentMarketData.usdtAedPriceBuy = FIXED_USDT_AED_BUY;
       currentMarketData.usdtAedPriceSell = FIXED_USDT_AED_SELL;
 
-      // Gửi báo cáo về Bot Mẹ / Admin
-      await bot.sendMessage(ADMIN_TELEGRAM_ID, messageContent, { parse_mode: 'Markdown' });
+      // Gửi báo cáo về Admin qua bot tracker
+      await botTracker.sendMessage(ADMIN_TELEGRAM_ID, messageContent, { parse_mode: 'Markdown' });
     }
   } catch (err) {
     console.error("Lỗi cron job cập nhật tỷ giá tuần:", err);
@@ -167,4 +161,4 @@ bot.on('message', async (msg) => {
   }
 });
 
-console.log("🤖 P2P Management Bot đã khởi động thành công với cơ chế bảo vệ một chiều!");
+console.log("🤖 P2P Management Bot đã khởi động thành công với 2 bot Telegram và cơ chế bảo vệ một chiều!");
