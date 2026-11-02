@@ -4,6 +4,7 @@ const axios = require('axios');
 
 // ================= CẤU HÌNH TOKEN VÀ BIẾN MÔI TRƯỜNG =================
 const TOKEN_BOT_CON = process.env.TELEGRAM_TOKEN;
+const TOKEN_BOT_TRACKER = process.env.TRACKER_TOKEN;
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_ID;
 
 if (!TOKEN_BOT_CON) {
@@ -11,7 +12,16 @@ if (!TOKEN_BOT_CON) {
   process.exit(1);
 }
 
-const bot = new TelegramBot(TOKEN_BOT_CON, { polling: true });
+// Khởi tạo 2 bot độc lập
+const bot = new TelegramBot(TOKEN_BOT_CON, { polling: true }); // Bot khách (@tygia_aed_bot)
+let botTracker = null;
+
+if (TOKEN_BOT_TRACKER) {
+  botTracker = new TelegramBot(TOKEN_BOT_TRACKER, { polling: false }); // Bot tracker (@vnd_aed_tracker_bot) gửi thông báo về admin
+  console.log("🤖 Bot Tracker đã được kích hoạt thành công!");
+} else {
+  console.log("⚠️ Cảnh báo: Chưa cấu hình TRACKER_TOKEN, bot tracker sẽ tạm ẩn.");
+}
 
 // ================= HỆ THỐNG BIẾN TOÀN CỤC & TỶ GIÁ MỘT CHIỀU =================
 const BASE_FIXED_BUY = 3.70;
@@ -20,7 +30,6 @@ const BASE_FIXED_SELL = 3.60;
 let FIXED_USDT_AED_BUY = 3.70;
 let FIXED_USDT_AED_SELL = 3.60;
 
-// Dữ liệu thị trường và mốc gốc quy đổi
 let currentMarketData = {
   giaMuaGoc: 7096, // VNĐ
   giaBanGoc: 7083, // VNĐ
@@ -90,7 +99,6 @@ cron.schedule('0 0 * * 1', async () => {
 
       let messageContent = "";
 
-      // Kiểm tra ngưỡng sụt giá nguy hiểm (<= 3.65)
       if (marketAvgPrice <= (BASE_FIXED_BUY - 0.05)) {
         FIXED_USDT_AED_BUY = BASE_FIXED_BUY;
         FIXED_USDT_AED_SELL = BASE_FIXED_SELL;
@@ -114,8 +122,9 @@ cron.schedule('0 0 * * 1', async () => {
       currentMarketData.usdtAedPriceBuy = FIXED_USDT_AED_BUY;
       currentMarketData.usdtAedPriceSell = FIXED_USDT_AED_SELL;
 
-      if (ADMIN_TELEGRAM_ID) {
-        await bot.sendMessage(ADMIN_TELEGRAM_ID, messageContent, { parse_mode: 'Markdown' });
+      // Gửi thông báo về Admin qua Bot Tracker
+      if (botTracker && ADMIN_TELEGRAM_ID) {
+        await botTracker.sendMessage(ADMIN_TELEGRAM_ID, messageContent, { parse_mode: 'Markdown' });
       }
     }
   } catch (err) {
@@ -123,18 +132,17 @@ cron.schedule('0 0 * * 1', async () => {
   }
 }, { timezone: "Asia/Ho_Chi_Minh" });
 
-// ================= XỬ LÝ LỆNH TỪ KHÁCH HÀNG TRÊN TELEGRAM =================
+// ================= XỬ LÝ LỆNH TỪ KHÁCH HÀNG (BOT KHÁCH) =================
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
-  const text = msg.text ? msg.text.trim() : '';
+  const text = msg.text ? msg.text.trim().toLowerCase() : '';
 
-  // Xử lý lệnh /mua hoặc /buy
-  if (text.startsWith('/mua') || text.startsWith('/buy')) {
+  if (text.startsWith('/mua') || text.startsWith('/buy') || text.startsWith('mua')) {
     const parts = text.split(' ');
-    const amount = parseFloat(parts[1]);
+    const amount = parseFloat(parts[1] || parts[parts.length - 1]);
 
     if (isNaN(amount) || amount <= 0) {
-      return bot.sendMessage(chatId, "⚠️ Vui lòng nhập đúng cú pháp. Ví dụ: `/mua 2000`", { parse_mode: 'Markdown' });
+      return bot.sendMessage(chatId, "⚠️ Vui lòng nhập đúng cú pháp. Ví dụ: `mua 2000`", { parse_mode: 'Markdown' });
     }
 
     const result = calculateBuy(amount, currentMarketData);
@@ -147,13 +155,12 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, replyText, { parse_mode: 'Markdown' });
   }
 
-  // Xử lý lệnh /ban hoặc /sell
-  if (text.startsWith('/ban') || text.startsWith('/sell')) {
+  if (text.startsWith('/ban') || text.startsWith('/sell') || text.startsWith('bán')) {
     const parts = text.split(' ');
-    const amount = parseFloat(parts[1]);
+    const amount = parseFloat(parts[1] || parts[parts.length - 1]);
 
     if (isNaN(amount) || amount <= 0) {
-      return bot.sendMessage(chatId, "⚠️ Vui lòng nhập đúng cú pháp. Ví dụ: `/ban 2000`", { parse_mode: 'Markdown' });
+      return bot.sendMessage(chatId, "⚠️ Vui lòng nhập đúng cú pháp. Ví dụ: `bán 2000`", { parse_mode: 'Markdown' });
     }
 
     const result = calculateSell(amount, currentMarketData);
@@ -167,4 +174,4 @@ bot.on('message', async (msg) => {
   }
 });
 
-console.log("🤖 Bot quản lý P2P AED/VND đã khởi động thành công với đầy đủ tính năng!");
+console.log("🤖 Hệ thống Dual-Bot P2P đã khởi động thành công!");
