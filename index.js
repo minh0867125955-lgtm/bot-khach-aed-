@@ -2,13 +2,16 @@ const TelegramBot = require('node-telegram-bot-api');
 const cron = require('node-cron');
 const axios = require('axios');
 
-// ================= THÔNG TIN CẤU HÌNH 2 BOT =================
-const TOKEN_BOT_CON = '8944357255:AAHtMV_Oqm4X5HnV4VK_FWikV_Rm4gurF4w';       // Bot khách (@tygia_aed_bot)[cite: 6]
-const TOKEN_BOT_TRACKER = '8939256653:AAGjP7BW1QjsxDGLCNapwgcIkat-SZNM4k0'; // Bot báo cáo (@vnd_aed_tracker_bot)[cite: 6]
-const ADMIN_TELEGRAM_ID = 'YOUR_ADMIN_TELEGRAM_ID_HERE'; // Điền ID Telegram của bạn vào đây
+// ================= LẤY TOKEN TỪ BIẾN MÔI TRƯỜNG RAILWAY =================
+const TOKEN_BOT_CON = process.env.TELEGRAM_TOKEN;
+const ADMIN_TELEGRAM_ID = process.env.ADMIN_ID; // ID Telegram của bạn
+
+if (!TOKEN_BOT_CON) {
+  console.error("❌ LỖI: Chưa cấu hình TELEGRAM_TOKEN trong biến môi trường của Railway!");
+  process.exit(1);
+}
 
 const bot = new TelegramBot(TOKEN_BOT_CON, { polling: true });
-const botTracker = new TelegramBot(TOKEN_BOT_TRACKER, { polling: false }); // Dùng để gửi tin nhắn thông báo về admin
 
 // ================= HỆ THỐNG BIẾN TOÀN CỤC (MỘT CHIỀU) =================
 const BASE_FIXED_BUY = 3.70;
@@ -44,7 +47,7 @@ async function getBinanceP2PData(fiat = 'AED', tradeType = 'BUY') {
 
 // ================= CƠ CHẾ TÍNH TOÁN THEO 5 MỐC SỐ LƯỢNG & LÃI MỘT CHIỀU =================
 function calculateBuy(amount, data) {
-  let profitMargin = 200; // <= 1.000 AED (Lãi chuẩn)
+  let profitMargin = 200; // <= 1.000 AED
   if (amount >= 50001) profitMargin = 60;
   else if (amount > 10000) profitMargin = 80;
   else if (amount > 5000) profitMargin = 120;
@@ -59,7 +62,7 @@ function calculateBuy(amount, data) {
 }
 
 function calculateSell(amount, data) {
-  let sellMargin = 200; // <= 1.000 AED (Lãi chuẩn)
+  let sellMargin = 200; // <= 1.000 AED
   if (amount >= 50001) sellMargin = 60;
   else if (amount > 10000) sellMargin = 80;
   else if (amount > 5000) sellMargin = 120;
@@ -75,7 +78,7 @@ function calculateSell(amount, data) {
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
 
-// ================= CRON JOB: CẬP NHẬT TỶ GIÁ CỐ ĐỊNH HÀNG TUẦN (0:00 THỨ HAI) =================
+// ================= CRON JOB: CẬP NHẬT TỶ GIÁ HÀNG TUẦN =================
 cron.schedule('0 0 * * 1', async () => {
   try {
     const aedBuyList = await getBinanceP2PData('AED', 'BUY');
@@ -86,40 +89,39 @@ cron.schedule('0 0 * * 1', async () => {
 
       let messageContent = "";
 
-      // Kiểm tra nếu thị trường sụt giảm sâu vượt ngưỡng 0.05 (<= 3.65)
       if (marketAvgPrice <= (BASE_FIXED_BUY - 0.05)) {
         FIXED_USDT_AED_BUY = BASE_FIXED_BUY;
         FIXED_USDT_AED_SELL = BASE_FIXED_SELL;
 
         messageContent = `🚨 **CẢNH BÁO SỤT GIÁ AED NGUY HIỂM (> 0.05)!**\n\n` +
-          `• Giá thị trường quét được: \`${marketAvgPrice}\` (Đã giảm qua ngưỡng an toàn 3.65)[cite: 1]\n` +
-          `• Hệ thống **KHÓA CỨNG** tỷ giá ở mốc gốc: Mua \`${FIXED_USDT_AED_BUY}\` | Bán \`${FIXED_USDT_AED_SELL}\` để bảo vệ vốn![cite: 1]`;
+          `• Giá thị trường quét được: \`${marketAvgPrice}\` (Giảm qua 3.65)\n` +
+          `• Hệ thống **KHÓA CỨNG** tỷ giá ở mốc gốc: Mua \`${FIXED_USDT_AED_BUY}\` | Bán \`${FIXED_USDT_AED_SELL}\``;
       } else {
         let stepDiff = Math.round((marketAvgPrice - BASE_FIXED_BUY) / 0.1) * 0.1;
-        if (stepDiff < 0) stepDiff = 0; // Chặn chiều giảm qua giá gốc
+        if (stepDiff < 0) stepDiff = 0;
 
         const oldBuy = FIXED_USDT_AED_BUY;
         FIXED_USDT_AED_BUY = parseFloat((BASE_FIXED_BUY + stepDiff).toFixed(2));
         FIXED_USDT_AED_SELL = parseFloat((BASE_FIXED_SELL + stepDiff).toFixed(2));
 
-        messageContent = `🔄 **TỰ ĐỘNG CẬP NHẬT TỶ GIÁ CỐ ĐỊNH TUẦN MỚI**\n\n` +
+        messageContent = `🔄 **TỰ ĐỘNG CẬP NHẬT TỶ GIÁ TUẦN MỚI**\n\n` +
           `• Giá Mua cũ: \`${oldBuy}\` ➡️ Mới: \`${FIXED_USDT_AED_BUY}\`\n` +
-          `• Giá Bán cũ: \`${(oldBuy - 0.1).toFixed(2)}\` ➡️ Mới: \`${FIXED_USDT_AED_SELL}\`\n` +
-          `• Trạng thái: Cùng tăng/giảm đồng bộ 0.1 (Đã khóa sàn tối thiểu 3.70/3.60)`;
+          `• Giá Bán cũ: \`${(oldBuy - 0.1).toFixed(2)}\` ➡️ Mới: \`${FIXED_USDT_AED_SELL}\``;
       }
 
       currentMarketData.usdtAedPriceBuy = FIXED_USDT_AED_BUY;
       currentMarketData.usdtAedPriceSell = FIXED_USDT_AED_SELL;
 
-      // Gửi báo cáo về Admin qua bot tracker
-      await botTracker.sendMessage(ADMIN_TELEGRAM_ID, messageContent, { parse_mode: 'Markdown' });
+      if (ADMIN_TELEGRAM_ID) {
+        await bot.sendMessage(ADMIN_TELEGRAM_ID, messageContent, { parse_mode: 'Markdown' });
+      }
     }
   } catch (err) {
-    console.error("Lỗi cron job cập nhật tỷ giá tuần:", err);
+    console.error("Lỗi cron job:", err);
   }
 }, { timezone: "Asia/Ho_Chi_Minh" });
 
-// ================= GIAO DIỆN TELEGRAM BOT (XỬ LÝ LỆNH KHÁCH HÀNG) =================
+// ================= GIAO DIỆN TELEGRAM BOT =================
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text ? msg.text.trim() : '';
@@ -135,7 +137,7 @@ bot.on('message', async (msg) => {
     const result = calculateBuy(amount, currentMarketData);
     const replyText = `🟢 **BÁO GIÁ MUA AED CHO KHÁCH**\n\n` +
       `• Số lượng: \`${amount.toLocaleString()} AED\`\n` +
-      `• Biên độ lãi áp dụng: \`${result.profitMargin} VNĐ\` (Sàn an toàn một chiều)\n` +
+      `• Biên độ lãi: \`${result.profitMargin} VNĐ\` (Sàn một chiều)\n` +
       `• Tỷ giá báo khách: \`${result.giaBao.toLocaleString()} VNĐ/AED\`\n` +
       `• Tổng tiền thanh toán: \`≈ ${result.totalVnd.toLocaleString()} VNĐ\``;
 
@@ -153,7 +155,7 @@ bot.on('message', async (msg) => {
     const result = calculateSell(amount, currentMarketData);
     const replyText = `🔴 **BÁO GIÁ BÁN AED CHO KHÁCH**\n\n` +
       `• Số lượng: \`${amount.toLocaleString()} AED\`\n` +
-      `• Biên độ lãi áp dụng: \`${result.sellMargin} VNĐ\` (Sàn an toàn một chiều)\n` +
+      `• Biên độ lãi: \`${result.sellMargin} VNĐ\` (Sàn một chiều)\n` +
       `• Tỷ giá thu mua: \`${result.giaBao.toLocaleString()} VNĐ/AED\`\n` +
       `• Tổng tiền chi trả: \`≈ ${result.tongChi.toLocaleString()} VNĐ\``;
 
@@ -161,4 +163,4 @@ bot.on('message', async (msg) => {
   }
 });
 
-console.log("🤖 P2P Management Bot đã khởi động thành công với 2 bot Telegram và cơ chế bảo vệ một chiều!");
+console.log("🤖 Bot P2P đã khởi động và hoạt động thành công!");
