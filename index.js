@@ -216,7 +216,6 @@ async function getDynamicMarketRates(amountAed = 1000) {
 
     if (!vndBuyInfo.price || !aedSellInfo.price) return cachedData || null;
 
-    // PHIÊN BẢN 2.1: Tinh chỉnh lớp đệm 1.55% tối ưu, mượt mà và chuẩn xác qua khách hàng
     const rawBaseRate = vndBuyInfo.price / aedSellInfo.price;
     const safeBaseRate = rawBaseRate * (1 + 0.0155);
 
@@ -319,6 +318,7 @@ async function handleBotMe(msg) {
   } catch (err) {}
 }
 
+// XỬ LÝ SỰ KIỆN NÚT BẤM CỦA BOT MẸ (Dùng để xác nhận hoặc hủy đơn hàng)
 if (botMe) {
   botMe.on('callback_query', async (query) => {
     if (!query?.data) return;
@@ -428,6 +428,7 @@ async function processSellQuote(chatId, inputObj) {
   setTimeout(async () => { try { await botCon.deleteMessage(chatId, sentMsg.message_id); } catch (e) {} }, 30 * 60 * 1000);
 }
 
+// XỬ LÝ SỰ KIỆN NÚT BẤM CỦA BOT CON (Khi khách bấm Mua nhanh, Bán nhanh hoặc Chốt đơn)
 if (botCon) {
   botCon.on('callback_query', async (query) => {
     if (!query?.data) return;
@@ -467,6 +468,7 @@ if (botCon) {
         userId: query.from.id.toString(), merchantVnd: merchantVndName, merchantAed: merchantAedName
       });
 
+      // GỬI THÔNG BÁO VỀ BOT MẸ CHO ADMIN
       try {
         const moneyLabel = actionType === 'BAN' ? '• Cần chuyển trả khách' : '• Cần thu từ khách';
         const adminAlert = `🔔 **ĐƠN MỚI [${txId}] (V2.1)**\n` +
@@ -483,7 +485,9 @@ if (botCon) {
           } 
         };
         await botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
-      } catch (err) {}
+      } catch (err) {
+        console.error("Lỗi gửi tin nhắn về Bot Mẹ:", err);
+      }
 
       const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn [${txId}] ${actionType} ${amount} AED.`);
       const finalWsUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${wsText}`;
