@@ -234,7 +234,7 @@ async function getDynamicMarketRates(amountAed = 1000) {
 }
 
 // =========================================================================
-// 🚀 LOGIC TÍNH TOÁN PHIÊN BẢN 2.2 (DÒNG TIỀN NỐI TIẾP CÓ ĐỆM TRƯỢT 1.55%)
+// 🚀 LOGIC TÍNH TOÁN PHIÊN BẢN 2.3 (BÙ ĐẮP PHÍ & TRƯỢT 1.55% CHO KHÁCH)
 // =========================================================================
 
 function calculateBuy(amount, data) {
@@ -244,16 +244,15 @@ function calculateBuy(amount, data) {
   else if (amount <= 10000) profitMargin = 120;
   else if (amount <= 50000) profitMargin = 80;
 
-  // Chiều MUA (Khách mua AED: VNĐ -> USDT -> AED) có đệm trượt 1.55% mỗi chặng
-  const usdtRaw = amount * data.usdtAedPrice;
-  const usdtBuffered = usdtRaw * (1 + 0.0155);
-  const vndRaw = usdtBuffered * data.usdtVndPrice;
-  const totalVndBase = vndRaw * (1 + 0.0155);
+  const usdtBase = amount * data.usdtAedPrice;
+  const usdtGross = usdtBase * (1 + 0.0155);
+  const usdtNet = usdtGross * (1 - 0.0155);
+  const vndRaw = usdtNet * data.usdtVndPrice;
 
   const totalLoi = profitMargin * amount;
-  const totalVnd = Math.ceil((totalVndBase + totalLoi) / 10) * 10;
+  const totalVnd = Math.ceil((vndRaw + totalLoi) / 10) * 10;
   const baseRate = Math.ceil((totalVnd / amount) / 10) * 10;
-  const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
+  const usdtAedNeeded = usdtNet.toFixed(2);
 
   return { giaBao: baseRate, totalVnd, usdtAedNeeded, totalLoi, profitMargin };
 }
@@ -265,16 +264,16 @@ function calculateSell(amount, data) {
   else if (amount <= 10000) sellMargin = 120;
   else if (amount <= 50000) sellMargin = 80;
 
-  // Chiều BÁN (Khách bán AED: AED -> USDT -> VNĐ) có đệm trượt 1.55% mỗi chặng
-  const usdtRaw = amount / data.usdtAedPrice;
-  const usdtBuffered = usdtRaw * (1 + 0.0155);
-  const vndRaw = usdtBuffered * data.usdtVndPrice;
-  const totalVndBuffered = vndRaw * (1 + 0.0155);
+  // Chiều BÁN: Lấy USDT quy đổi từ AED, tính gộp bù trừ 1.55% và quy ra VNĐ thực nhận sau khi trừ lãi
+  const usdtBase = amount / data.usdtAedPrice;
+  const usdtGross = usdtBase * (1 + 0.0155);
+  const usdtNet = usdtGross * (1 - 0.0155);
+  const vndRaw = usdtNet * data.usdtVndPrice;
 
   const totalLoi = sellMargin * amount;
-  const tongChi = Math.floor((totalVndBuffered - totalLoi) / 10) * 10;
+  const tongChi = Math.floor((vndRaw - totalLoi) / 10) * 10;
   const giaBao = Math.floor((tongChi / amount) / 10) * 10;
-  const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
+  const usdtAedNeeded = usdtNet.toFixed(2);
 
   return { giaBao, tongChi, usdtAedNeeded, totalLoi, sellMargin };
 }
@@ -295,7 +294,7 @@ async function buildPriceReport(tagLine = "") {
   const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
   const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-  return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ - V2.2)**\n(${timeStr} ${dateStr})\n\n` +
+  return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ - V2.3)**\n(${timeStr} ${dateStr})\n\n` +
     `📌 *${tagLine || "Báo cáo Giờ Vàng"}*\n\n` +
     `🟢 Giá mua gốc sàn: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
     `🔴 Giá bán gốc sàn: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
@@ -318,7 +317,7 @@ async function handleBotMe(msg) {
 
   try {
     if (text === '/start') {
-      return botMe.sendMessage(chatId, `👑 **BOT MẸ QUẢN LÝ (V2.2)**\n\n• \`gia\`\n• \`thongke\`\n• \`tongket\``, { parse_mode: 'Markdown' });
+      return botMe.sendMessage(chatId, `👑 **BOT MẸ QUẢN LÝ (V2.3)**\n\n• \`gia\`\n• \`thongke\`\n• \`tongket\``, { parse_mode: 'Markdown' });
     }
     if (text === 'thongke' || text === '/thongke') {
       const users = await getStoredUsers();
@@ -374,7 +373,7 @@ async function handleBotCon(msg) {
 
   try {
     if (text === '/start') {
-      const welcomeMsg = `🌟 **DỊCH VỤ QUY ĐỔI TIỀN TỆ AED <-> VNĐ (V2.2)** 🌟\n\n💡 Gõ lệnh:\n• \`mua 1000\` hoặc \`mua 10tr\`\n• \`bán 500\` hoặc \`bán 5tr\``;
+      const welcomeMsg = `🌟 **DỊCH VỤ QUY ĐỔI TIỀN TỆ AED <-> VNĐ (V2.3)** 🌟\n\n💡 Gõ lệnh:\n• \`mua 1000\` hoặc \`mua 10tr\`\n• \`bán 500\` hoặc \`bán 5tr\``;
       const defaultKeyboard = {
         reply_markup: {
           inline_keyboard: [
@@ -486,7 +485,7 @@ if (botCon) {
 
       try {
         const moneyLabel = actionType === 'BAN' ? '• Cần chuyển trả khách' : '• Cần thu từ khách';
-        const adminAlert = `🔔 **ĐƠN MỚI [${txId}] (V2.2)**\n` +
+        const adminAlert = `🔔 **ĐƠN MỚI [${txId}] (V2.3)**\n` +
           `👤 Khách: ${userName}\n` +
           `📌 ${actionType} ${amount.toLocaleString('vi-VN')} AED\n` +
           `${moneyLabel}: **${totalMoney.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -540,4 +539,4 @@ if (botCon) botCon.on('polling_error', (error) => {});
 botMe.on('message', handleBotMe);
 if (botCon) botCon.on('message', handleBotCon);
 
-console.log("🚀 Hệ thống P2P Telegram Bot Phiên bản 2.2 đã khởi động thành công!");
+console.log("🚀 Hệ thống P2P Telegram Bot Phiên bản 2.3 đã khởi động thành công!");
