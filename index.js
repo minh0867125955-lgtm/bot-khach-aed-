@@ -204,25 +204,29 @@ async function getDynamicMarketRates(amountAed = 1000) {
 
   try {
     const estimatedVnd = amountAed * 7000; 
-    const [vndBuyList, aedSellList] = await Promise.all([
-      getBinanceP2PData('VND', 'BUY', estimatedVnd),
-      getBinanceP2PData('AED', 'SELL', amountAed)
+    
+    // ĐẢO ĐÚNG CHIỀU THƯƠNG NHÂN THEO YÊU CẦU:
+    // - VND: tradeType 'SELL' (Quét thương nhân BÁN VNĐ)[cite: 6, 7]
+    // - AED: tradeType 'BUY'  (Quét thương nhân MUA AED)[cite: 4]
+    const [vndSellList, aedBuyList] = await Promise.all([
+      getBinanceP2PData('VND', 'SELL', estimatedVnd),
+      getBinanceP2PData('AED', 'BUY', amountAed)
     ]);
 
-    if (!vndBuyList.length || !aedSellList.length) return cachedData || null;
+    if (!vndSellList.length || !aedBuyList.length) return cachedData || null;
 
-    const vndBuyInfo = getSmartMerchantAndPrice(vndBuyList, estimatedVnd);
-    const aedSellInfo = getSmartMerchantAndPrice(aedSellList, amountAed);
+    const vndSellInfo = getSmartMerchantAndPrice(vndSellList, estimatedVnd);
+    const aedBuyInfo = getSmartMerchantAndPrice(aedBuyList, amountAed);
 
-    if (!vndBuyInfo.price || !aedSellInfo.price) return cachedData || null;
+    if (!vndSellInfo.price || !aedBuyInfo.price) return cachedData || null;
 
     cachedData = {
-      giaMuaGoc: Math.round(vndBuyInfo.price / aedSellInfo.price),
-      giaBanGoc: Math.round(vndBuyInfo.price / aedSellInfo.price),
-      usdtVndPrice: vndBuyInfo.price,
-      usdtAedPrice: aedSellInfo.price,
-      merchantVnd: vndBuyInfo.nickName,
-      merchantAed: aedSellInfo.nickName
+      giaMuaGoc: Math.round(vndSellInfo.price / aedBuyInfo.price),
+      giaBanGoc: Math.round(vndSellInfo.price / aedBuyInfo.price),
+      usdtVndPrice: vndSellInfo.price,
+      usdtAedPrice: aedBuyInfo.price,
+      merchantVnd: vndSellInfo.nickName,
+      merchantAed: aedBuyInfo.nickName
     };
     lastFetchTime = Date.now();
 
@@ -533,4 +537,4 @@ if (botCon) botCon.on('polling_error', (error) => {});
 botMe.on('message', handleBotMe);
 if (botCon) botCon.on('message', handleBotCon);
 
-console.log("🚀 Hệ thống P2P Telegram Bot phiên bản 2.4 đã khởi động thành công!");
+console.log("🚀 Hệ thống P2P Telegram Bot phiên bản 2.4 (Đã sửa quét thương nhân chuẩn xác) đã khởi động thành công!");
