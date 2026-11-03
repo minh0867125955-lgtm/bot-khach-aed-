@@ -450,4 +450,77 @@ if (botCon) {
       const parts = data.split('_');
       if (parts.length < 5) return;
 
-      const
+      const actionType = parts[1]; 
+      const amount = parseFloat(parts[2]);
+      const giaBao = parseFloat(parts[3]);
+      const totalMoney = parseFloat(parts[4]);
+      const profit = parseFloat(parts[5]);
+
+      const currentRates = await getDynamicMarketRates(amount);
+      const merchantVndName = currentRates ? currentRates.merchantVnd : 'Không rõ';
+      const merchantAedName = currentRates ? currentRates.merchantAed : 'Không rõ';
+      const txId = 'TX-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+      const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+
+      await recordTransaction({ 
+        id: txId, date: todayStr, type: actionType, amount, profit, status: 'PENDING', 
+        userId: query.from.id.toString(), merchantVnd: merchantVndName, merchantAed: merchantAedName
+      });
+
+      try {
+        const moneyLabel = actionType === 'BAN' ? '• Cần chuyển trả khách' : '• Cần thu từ khách';
+        const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n` +
+          `👤 Khách: ${userName}\n` +
+          `📌 ${actionType} ${amount.toLocaleString('vi-VN')} AED\n` +
+          `${moneyLabel}: **${totalMoney.toLocaleString('vi-VN')} VNĐ**\n` +
+          `• Lãi: +${Math.round(profit).toLocaleString('vi-VN')} VNĐ\n` +
+          `🏢 **Thương nhân VND:** ${merchantVndName}\n` +
+          `🏢 **Thương nhân AED:** ${merchantAedName}`;
+        
+        const adminKeyboard = { 
+          reply_markup: { 
+            inline_keyboard: [[{ text: "✅ Hoàn Thành", callback_data: `SUCCESS_${txId}` }, { text: "❌ Hủy", callback_data: `CANCEL_${txId}` }]] 
+          } 
+        };
+        await botMe.sendMessage(ADMIN_TELEGRAM_ID, adminAlert, { parse_mode: 'Markdown', ...adminKeyboard });
+      } catch (err) {}
+
+      const wsText = encodeURIComponent(`Chào bạn, tôi muốn chốt đơn [${txId}] ${actionType} ${amount} AED.`);
+      const finalWsUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${wsText}`;
+
+      return botCon.sendMessage(chatId, `✅ Mã đơn: \`${txId}\``, {
+        parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: [[{ text: "💬 Chốt Trên WhatsApp", url: finalWsUrl }]] }
+      });
+    }
+  });
+}
+
+cron.schedule('0 10,15,21 * * *', async () => {
+  try {
+    const report = await buildPriceReport("Báo cáo Giờ Vàng tự động");
+    await botMe.sendMessage(ADMIN_TELEGRAM_ID, report, { parse_mode: 'Markdown' });
+  } catch (err) {}
+}, { timezone: "Asia/Ho_Chi_Minh" });
+
+cron.schedule('59 23 * * *', async () => {
+  try {
+    const summary = await getDailySummary();
+    const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const msgSummary = `🌙 **TỔNG KẾT CUỐI NGÀY (${todayStr})**\n` +
+      `📦 Tổng đơn thành công: ${summary.count}\n` +
+      `🟢 Khách mua: ${summary.totalBuyAed.toLocaleString('vi-VN')} AED\n` +
+      `🔴 Khách bán: ${summary.totalSellAed.toLocaleString('vi-VN')} AED\n` +
+      `💵 Tổng lãi ròng: +${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ\n\n` +
+      `${summary.strategyAdvice}`;
+    await botMe.sendMessage(ADMIN_TELEGRAM_ID, msgSummary, { parse_mode: 'Markdown' });
+  } catch (err) {}
+}, { timezone: "Asia/Ho_Chi_Minh" });
+
+botMe.on('polling_error', (error) => {});
+if (botCon) botCon.on('polling_error', (error) => {});
+
+botMe.on('message', handleBotMe);
+if (botCon) botCon.on('message', handleBotCon);
+
+console.log("🚀 Hệ thống P2P Telegram Bot phiên bản Vàng đã khởi động thành công!");
