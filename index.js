@@ -216,12 +216,13 @@ async function getDynamicMarketRates(amountAed = 1000) {
 
     if (!vndBuyInfo.price || !aedSellInfo.price) return cachedData || null;
 
-    const giaMuaGoc = Math.round((vndBuyInfo.price / aedSellInfo.price) * 1000) / 1000;
-    const giaBanGoc = giaMuaGoc; // Hoặc tách riêng logic mua/bán gốc nếu muốn
+    // PHIÊN BẢN 2.0: Tích hợp lớp đệm 1.55% (0.0155) vào giá gốc sàn để chống trượt giá
+    const rawBaseRate = vndBuyInfo.price / aedSellInfo.price;
+    const safeBaseRate = rawBaseRate * (1 + 0.0155);
 
     cachedData = {
-      giaMuaGoc: Math.round(vndBuyInfo.price / aedSellInfo.price),
-      giaBanGoc: Math.round(vndBuyInfo.price / aedSellInfo.price),
+      giaMuaGoc: Math.round(safeBaseRate),
+      giaBanGoc: Math.round(safeBaseRate),
       usdtVndPrice: vndBuyInfo.price,
       usdtAedPrice: aedSellInfo.price,
       merchantVnd: vndBuyInfo.nickName,
@@ -241,7 +242,8 @@ function calculateBuy(amount, data) {
   else if (amount <= 10000) profitMargin = 120;
   else if (amount <= 50000) profitMargin = 80;
 
-  const baseRate = Math.ceil(((data.usdtVndPrice / data.usdtAedPrice) + profitMargin) / 10) * 10;
+  // data.giaMuaGoc đã bao gồm lớp đệm 1.55%, cộng tiếp mốc lãi cứng để ra giá báo khách
+  const baseRate = Math.ceil((data.giaMuaGoc + profitMargin) / 10) * 10;
   const totalVnd = baseRate * amount;
   const totalLoi = profitMargin * amount;
   const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
@@ -256,7 +258,8 @@ function calculateSell(amount, data) {
   else if (amount <= 10000) sellMargin = 120;
   else if (amount <= 50000) sellMargin = 80;
 
-  let giaBao = Math.floor(((data.usdtVndPrice / data.usdtAedPrice) - sellMargin) / 10) * 10;
+  // data.giaBanGoc đã bao gồm lớp đệm, trừ đi biên độ khi mua lại từ khách
+  let giaBao = Math.floor((data.giaBanGoc - sellMargin) / 10) * 10;
   const tongChi = giaBao * amount;
   const totalLoi = sellMargin * amount;
   const usdtAedNeeded = (amount / data.usdtAedPrice).toFixed(2);
@@ -278,10 +281,9 @@ async function buildPriceReport(tagLine = "") {
   const timeStr = new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
   const dateStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
-  return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ)**\n(${timeStr} ${dateStr})\n\n` +
-    `📌 *${tagLine || "Báo cáo Giờ Vàng"}*\n\n` +
-    `🟢 Giá mua gốc sàn: 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n` +
-    `🔴 Giá bán gốc sàn: 1 AED = ${data.giaBanGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
+  return `📊 **BÁO CÁO QUẢN TRỊ (BOT MẸ - PHIÊN BẢN 2.0)**\n(${timeStr} ${dateStr})\n\n` +
+    `📌 *${tagLine || "Báo cáo Giờ Vàng (Đã bọc đệm 1.55%)"}*\n\n` +
+    `🟢 Giá gốc cơ sở (+ Đệm 1.55%): 1 AED = ${data.giaMuaGoc.toLocaleString('vi-VN')} VNĐ\n\n` +
     `${summary.strategyAdvice}\n\n` +
     `🛠 **TỶ GIÁ THEO 5 MỐC SỐ LƯỢNG:**\n` +
     `🔹 **≤ 1.000 AED (Lãi 230đ):**\n  • Mua: ${r500.mua.toLocaleString('vi-VN')} | Bán: ${r500.ban.toLocaleString('vi-VN')}\n` +
@@ -301,7 +303,7 @@ async function handleBotMe(msg) {
 
   try {
     if (text === '/start') {
-      return botMe.sendMessage(chatId, `👑 **BOT MẸ QUẢN LÝ**\n\n• \`gia\`\n• \`thongke\`\n• \`tongket\``, { parse_mode: 'Markdown' });
+      return botMe.sendMessage(chatId, `👑 **BOT MẸ QUẢN LÝ (V2.0)**\n\n• \`gia\`\n• \`thongke\`\n• \`tongket\``, { parse_mode: 'Markdown' });
     }
     if (text === 'thongke' || text === '/thongke') {
       const users = await getStoredUsers();
@@ -312,7 +314,7 @@ async function handleBotMe(msg) {
       return botMe.sendMessage(chatId, `📊 **TỔNG KẾT HÔM NAY**\n📦 Đơn thành công: ${summary.count}\n🟢 Khách mua: ${summary.totalBuyAed.toLocaleString('vi-VN')} AED\n🔴 Khách bán: ${summary.totalSellAed.toLocaleString('vi-VN')} AED\n💵 Lãi ròng: +${Math.round(summary.totalProfit).toLocaleString('vi-VN')} VNĐ\n\n${summary.strategyAdvice}`, { parse_mode: 'Markdown' });
     }
     if (text === 'gia' || text === '/gia') {
-      const waitingMsg = await botMe.sendMessage(chatId, `⏳ Đang quét giá động trên Binance P2P...`);
+      const waitingMsg = await botMe.sendMessage(chatId, `⏳ Đang quét giá động và áp lớp đệm 1.55% trên Binance P2P...`);
       const report = await buildPriceReport("Báo cáo theo yêu cầu");
       return botMe.editMessageText(report, { chat_id: chatId, message_id: waitingMsg.message_id, parse_mode: 'Markdown' });
     }
@@ -357,7 +359,7 @@ async function handleBotCon(msg) {
 
   try {
     if (text === '/start') {
-      const welcomeMsg = `🌟 **DỊCH VỤ QUY ĐỔI TIỀN TỆ AED <-> VNĐ** 🌟\n\n💡 Gõ lệnh:\n• \`mua 1000\` hoặc \`mua 10tr\`\n• \`bán 500\` hoặc \`bán 5tr\``;
+      const welcomeMsg = `🌟 **DỊCH VỤ QUY ĐỔI TIỀN TỆ AED <-> VNĐ (V2.0)** 🌟\n\n💡 Gõ lệnh:\n• \`mua 1000\` hoặc \`mua 10tr\`\n• \`bán 500\` hoặc \`bán 5tr\``;
       const defaultKeyboard = {
         reply_markup: {
           inline_keyboard: [
@@ -469,7 +471,7 @@ if (botCon) {
 
       try {
         const moneyLabel = actionType === 'BAN' ? '• Cần chuyển trả khách' : '• Cần thu từ khách';
-        const adminAlert = `🔔 **ĐƠN MỚI [${txId}]**\n` +
+        const adminAlert = `🔔 **ĐƠN MỚI [${txId}] (V2.0)**\n` +
           `👤 Khách: ${userName}\n` +
           `📌 ${actionType} ${amount.toLocaleString('vi-VN')} AED\n` +
           `${moneyLabel}: **${totalMoney.toLocaleString('vi-VN')} VNĐ**\n` +
@@ -507,7 +509,7 @@ cron.schedule('59 23 * * *', async () => {
   try {
     const summary = await getDailySummary();
     const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-    const msgSummary = `🌙 **TỔNG KẾT CUỐI NGÀY (${todayStr})**\n` +
+    const msgSummary = `🌙 **TỔNG KẾT CUỐI NGÀY V2.0 (${todayStr})**\n` +
       `📦 Tổng đơn thành công: ${summary.count}\n` +
       `🟢 Khách mua: ${summary.totalBuyAed.toLocaleString('vi-VN')} AED\n` +
       `🔴 Khách bán: ${summary.totalSellAed.toLocaleString('vi-VN')} AED\n` +
@@ -523,4 +525,4 @@ if (botCon) botCon.on('polling_error', (error) => {});
 botMe.on('message', handleBotMe);
 if (botCon) botCon.on('message', handleBotCon);
 
-console.log("🚀 Hệ thống P2P Telegram Bot phiên bản Vàng đã khởi động thành công!");
+console.log("🚀 Hệ thống P2P Telegram Bot Phiên bản 2.0 (Đã tích hợp lớp đệm 1.55%) khởi động thành công!");
